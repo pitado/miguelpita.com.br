@@ -1,8 +1,18 @@
 (() => {
   "use strict";
 
+  console.log(
+    "%cWEBGL ART V3 CARREGADO",
+    "background:#111;color:#fff;padding:5px 8px;border-radius:5px;font-weight:bold"
+  );
+
   const canvas = document.getElementById("webgl");
   const fallback = document.getElementById("fallback");
+
+  if (!canvas) {
+    console.error("Canvas #webgl não encontrado.");
+    return;
+  }
 
   const gl = canvas.getContext("webgl2", {
     alpha: false,
@@ -15,11 +25,17 @@
   });
 
   if (!gl) {
-    fallback.hidden = false;
+    console.error("WebGL2 não disponível.");
+
+    if (fallback) {
+      fallback.hidden = false;
+    }
+
     return;
   }
 
   const vertexShaderSource = `#version 300 es
+
     precision highp float;
 
     layout(location = 0) in vec2 a_position;
@@ -30,759 +46,909 @@
   `;
 
   const fragmentShaderSource = `#version 300 es
+
     precision highp float;
 
     out vec4 outColor;
 
     uniform vec2 u_resolution;
     uniform vec2 u_mouse;
+
     uniform float u_time;
     uniform float u_motion;
 
-    #define PI 3.141592653589793
-
     float hash21(vec2 p) {
-      p = fract(p * vec2(123.34, 456.21));
-      p += dot(p, p + 45.32);
-      return fract(p.x * p.y);
+      p = fract(
+        p *
+        vec2(
+          123.34,
+          456.21
+        )
+      );
+
+      p += dot(
+        p,
+        p + 45.32
+      );
+
+      return fract(
+        p.x *
+        p.y
+      );
     }
 
     float noise(vec2 p) {
-      vec2 i = floor(p);
-      vec2 f = fract(p);
+      vec2 i =
+        floor(p);
 
-      f = f * f * (3.0 - 2.0 * f);
+      vec2 f =
+        fract(p);
 
-      float a = hash21(i);
-      float b = hash21(i + vec2(1.0, 0.0));
-      float c = hash21(i + vec2(0.0, 1.0));
-      float d = hash21(i + vec2(1.0, 1.0));
+      f =
+        f *
+        f *
+        (
+          3.0 -
+          2.0 *
+          f
+        );
 
-      return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+      float a =
+        hash21(i);
+
+      float b =
+        hash21(
+          i +
+          vec2(
+            1.0,
+            0.0
+          )
+        );
+
+      float c =
+        hash21(
+          i +
+          vec2(
+            0.0,
+            1.0
+          )
+        );
+
+      float d =
+        hash21(
+          i +
+          vec2(
+            1.0,
+            1.0
+          )
+        );
+
+      return mix(
+        mix(
+          a,
+          b,
+          f.x
+        ),
+
+        mix(
+          c,
+          d,
+          f.x
+        ),
+
+        f.y
+      );
     }
 
     float fbm(vec2 p) {
-      float value = 0.0;
-      float amplitude = 0.52;
+      float value =
+        0.0;
 
-      mat2 rot = mat2(
-        0.80, -0.60,
-        0.60,  0.80
-      );
+      float amplitude =
+        0.54;
 
-      for (int i = 0; i < 5; i++) {
-        value += amplitude * noise(p);
-        p = rot * p * 2.02 + 13.7;
-        amplitude *= 0.50;
+      mat2 rot =
+        mat2(
+          0.80,
+          -0.60,
+
+          0.60,
+          0.80
+        );
+
+      for (
+        int i = 0;
+        i < 5;
+        i++
+      ) {
+        value +=
+          amplitude *
+          noise(p);
+
+        p =
+          rot *
+          p *
+          2.03 +
+          9.7;
+
+        amplitude *=
+          0.50;
       }
 
       return value;
     }
 
-    float ridge(float x) {
-      return 1.0 - abs(2.0 * x - 1.0);
+    float lineBand(
+      float value,
+      float count,
+      float width
+    ) {
+      float f =
+        fract(
+          value *
+          count
+        );
+
+      float d =
+        abs(
+          f -
+          0.5
+        );
+
+      return
+        1.0 -
+        smoothstep(
+          width,
+          width + 0.025,
+          d
+        );
     }
 
-    float lineBand(float value, float count, float width) {
-      float f = fract(value * count);
-      float d = abs(f - 0.5);
-
-      return 1.0 - smoothstep(
-        width,
-        width + 0.024,
-        d
-      );
-    }
-
-    float thinLine(float d, float width) {
-      return 1.0 - smoothstep(
-        width,
-        width + 0.004,
-        abs(d)
-      );
+    float thinLine(
+      float d,
+      float width
+    ) {
+      return
+        1.0 -
+        smoothstep(
+          width,
+          width + 0.004,
+          abs(d)
+        );
     }
 
     float arcStroke(
       vec2 p,
       vec2 center,
       float radius,
-      float thickness
+      float width
     ) {
-      return 1.0 - smoothstep(
-        thickness,
-        thickness + 0.0025,
-        abs(length(p - center) - radius)
-      );
+      return
+        1.0 -
+        smoothstep(
+          width,
+          width + 0.0025,
+
+          abs(
+            length(
+              p -
+              center
+            ) -
+            radius
+          )
+        );
     }
 
     void main() {
 
-      vec2 frag = gl_FragCoord.xy;
-      vec2 uv = frag / u_resolution;
+      vec2 uv =
+        gl_FragCoord.xy /
+        u_resolution;
 
-      vec2 p = uv - 0.5;
+      vec2 p =
+        uv -
+        0.5;
 
-      p.x *= u_resolution.x / u_resolution.y;
+      p.x *=
+        u_resolution.x /
+        u_resolution.y;
 
-      vec2 mouse = u_mouse - 0.5;
-      mouse.x *= u_resolution.x / u_resolution.y;
+      vec2 mouse =
+        u_mouse -
+        0.5;
 
-      float t = u_time;
+      mouse.x *=
+        u_resolution.x /
+        u_resolution.y;
 
-      // ===========================
-      // CAMPO VIVO
-      // ===========================
+      float t =
+        u_time;
 
-      vec2 q = p;
-
-      float slowA = sin(t * 0.105);
-      float slowB = cos(t * 0.083);
+      vec2 q =
+        p;
 
       q.x +=
-        0.035 *
-        sin(q.y * 2.8 + t * 0.13);
+        0.070 *
+        sin(
+          q.y *
+          3.2 +
+          t *
+          0.40
+        );
 
       q.y +=
-        0.026 *
-        cos(q.x * 3.1 - t * 0.11);
+        0.058 *
+        cos(
+          q.x *
+          3.6 -
+          t *
+          0.33
+        );
 
-      // ===========================
-      // INTERAÇÃO COM MOUSE
-      // ===========================
+      q +=
+        vec2(
+          sin(
+            t *
+            0.17
+          ),
 
-      vec2 toMouse = q - mouse;
+          cos(
+            t *
+            0.14
+          )
+        )
+        *
+        0.020;
 
-      float mouseDist =
-        length(toMouse);
+      vec2 toMouse =
+        q -
+        mouse;
+
+      float mouseDistance =
+        length(
+          toMouse
+        );
 
       float mouseInfluence =
         exp(
-          -mouseDist *
-          mouseDist *
-          8.0
-        ) *
+          -mouseDistance *
+          mouseDistance *
+          7.0
+        )
+        *
         u_motion;
 
       q +=
         normalize(
-          toMouse + 0.0001
-        ) *
-        mouseInfluence *
-        0.038;
+          toMouse +
+          0.0001
+        )
+        *
+        mouseInfluence
+        *
+        0.050;
 
       q +=
         vec2(
           -toMouse.y,
           toMouse.x
-        ) *
-        mouseInfluence *
-        0.024;
+        )
+        *
+        mouseInfluence
+        *
+        0.036;
 
-      // ===========================
-      // FORMA ABSTRATA
-      // ===========================
-
-      vec2 warpP =
+      vec2 warpPoint =
         q *
         vec2(
-          1.34,
-          1.02
+          1.25,
+          1.00
         );
 
-      vec2 warp = vec2(
+      vec2 warp1 =
+        vec2(
 
-        fbm(
-          warpP * 1.25 +
-          vec2(
-            t * 0.035,
-            -t * 0.022
-          )
-        ),
+          fbm(
+            warpPoint *
+            1.35 +
+            vec2(
+              t *
+              0.125,
 
-        fbm(
-          warpP * 1.18 +
-          vec2(
-            -t * 0.027,
-            t * 0.030
+              -t *
+              0.095
+            )
+          ),
+
+          fbm(
+            warpPoint *
+            1.27 +
+            vec2(
+              -t *
+              0.105,
+
+              t *
+              0.115
+            )
           )
+
+        );
+
+      vec2 warp2 =
+        vec2(
+
+          fbm(
+            warpPoint *
+            2.25 +
+
+            warp1 *
+            1.60 +
+
+            vec2(
+              5.0,
+              2.0
+            ) +
+
+            vec2(
+              sin(
+                t *
+                0.21
+              ),
+
+              cos(
+                t *
+                0.17
+              )
+            )
+            *
+            0.40
+          ),
+
+          fbm(
+            warpPoint *
+            2.05 +
+
+            warp1.yx *
+            1.50 +
+
+            vec2(
+              3.0,
+              7.0
+            ) +
+
+            vec2(
+              cos(
+                t *
+                0.18
+              ),
+
+              sin(
+                t *
+                0.23
+              )
+            )
+            *
+            0.35
+          )
+
+        );
+
+      vec2 field =
+        warpPoint;
+
+      field +=
+        (
+          warp1 -
+          0.5
         )
+        *
+        0.66;
 
-      );
-
-      vec2 warp2 = vec2(
-
-        fbm(
-          warpP * 2.10 +
-          warp * 1.40 +
-          vec2(
-            7.0,
-            3.0
-          )
-        ),
-
-        fbm(
-          warpP * 1.82 +
-          warp.yx * 1.30 +
-          vec2(
-            2.0,
-            8.0
-          )
+      field +=
+        (
+          warp2 -
+          0.5
         )
+        *
+        0.28;
 
-      );
+      float pulse =
+        0.5 +
+        0.5 *
+        sin(
+          t *
+          0.24
+        );
 
-      vec2 fieldP =
-        warpP;
+      float pulse2 =
+        0.5 +
+        0.5 *
+        cos(
+          t *
+          0.31
+        );
 
-      fieldP +=
-        (warp - 0.5) *
-        0.48;
+      float centerX =
+        -0.38 +
+        sin(
+          t *
+          0.13
+        )
+        *
+        0.11;
 
-      fieldP +=
-        (warp2 - 0.5) *
-        0.18;
-
-      // ===========================
-      // MÁSCARA DA "MONTANHA"
-      // ===========================
+      float centerY =
+        -0.02 +
+        cos(
+          t *
+          0.11
+        )
+        *
+        0.08;
 
       float mountainMask =
 
         exp(
           -pow(
-            (q.x + 0.46) *
-            1.02,
+            (
+              q.x -
+              centerX
+            )
+            *
+            (
+              1.05 +
+              pulse *
+              0.18
+            ),
+
             2.0
-          ) *
-          2.0
+          )
+          *
+          1.75
         )
 
         *
 
         exp(
           -pow(
-            (q.y + 0.03) *
-            0.80,
+            (
+              q.y -
+              centerY
+            )
+            *
+            (
+              0.82 +
+              pulse2 *
+              0.16
+            ),
+
             2.0
-          ) *
-          1.25
+          )
+          *
+          1.18
         );
 
       float trailMask =
 
         exp(
           -pow(
-            (q.x + 0.05) *
-            0.70,
+            (
+              q.x +
+              0.02
+            )
+            *
+            (
+              0.66 +
+              pulse *
+              0.14
+            ),
+
             2.0
-          ) *
-          0.85
+          )
+          *
+          0.78
         )
 
         *
 
         exp(
           -pow(
-            (q.y + 0.10) *
-            1.18,
+            (
+              q.y +
+              0.10
+            )
+            *
+            (
+              1.10 +
+              pulse2 *
+              0.12
+            ),
+
             2.0
-          ) *
-          2.1
+          )
+          *
+          1.85
         );
-
-      float fadeRight =
-        smoothstep(
-          1.05,
-          -0.56,
-          q.x
-        );
-
-      // ===========================
-      // ALTURA DO CAMPO
-      // ===========================
 
       float height =
         fbm(
-          fieldP * 2.10 +
+          field *
+          2.10 +
+
           vec2(
-            slowA * 0.12,
-            slowB * 0.08
+            sin(
+              t *
+              0.12
+            )
+            *
+            0.45,
+
+            cos(
+              t *
+              0.10
+            )
+            *
+            0.38
           )
         );
 
       float detail =
         fbm(
-          fieldP * 4.2 +
+          field *
+          4.40 +
+
+          warp2 *
+          0.48 +
+
           vec2(
-            3.0,
-            9.0
-          ) +
-          warp2 * 0.34
+            cos(
+              t *
+              0.18
+            )
+            *
+            0.50,
+
+            sin(
+              t *
+              0.16
+            )
+            *
+            0.46
+          )
         );
 
       height +=
         detail *
-        0.17;
+        0.22;
 
       height +=
         sin(
-          fieldP.x * 3.0 +
-          fieldP.y * 1.2 +
-          t * 0.12
-        ) *
-        0.035;
+          field.x *
+          3.8 +
 
-      float ridged =
-        ridge(height);
+          field.y *
+          1.5 +
+
+          t *
+          0.42
+        )
+        *
+        0.050;
 
       height +=
-        ridged *
-        mountainMask *
-        0.085;
+        cos(
+          field.y *
+          4.6 -
+
+          field.x *
+          1.3 -
+
+          t *
+          0.34
+        )
+        *
+        0.035;
 
       float fieldMask =
         clamp(
+          mountainMask *
+          1.10 +
 
-          (
-            mountainMask *
-            1.12 +
-
-            trailMask *
-            0.74
-          )
-
-          *
-
-          fadeRight,
+          trailMask *
+          0.68,
 
           0.0,
           1.0
         );
 
-      // ===========================
-      // LINHAS TOPOGRÁFICAS
-      // ===========================
-
-      float contoursSoft =
+      float contour1 =
         lineBand(
           height,
-          43.0,
-          0.052
+          48.0,
+          0.050
         );
 
-      float contoursMid =
+      float contour2 =
         lineBand(
           height +
           detail *
-          0.055,
+          0.07,
 
-          31.0,
-          0.047
+          35.0,
+          0.045
         );
 
-      float contoursDark =
+      float contour3 =
         lineBand(
           height +
-          detail *
-          0.105,
+          warp1.x *
+          0.08,
 
-          18.0,
-          0.041
+          20.0,
+          0.038
         );
 
-      float depthNoise =
+      float depth =
         smoothstep(
-          0.43,
-          0.82,
-
-          ridged *
-          0.72 +
+          0.42,
+          0.78,
 
           detail *
-          0.28
+          0.55 +
+
+          height *
+          0.45
         );
 
       float lineAmount =
+        (
+          contour1 *
+          0.34 +
 
-        contoursSoft *
-        0.34
+          contour2 *
+          0.34 +
 
-        +
-
-        contoursMid *
-        0.30
-
-        +
-
-        contoursDark *
-        0.46 *
-        depthNoise;
-
-      lineAmount *=
+          contour3 *
+          0.44 *
+          depth
+        )
+        *
         fieldMask;
 
-      // ===========================
-      // LINHAS MAIS ESCURAS
-      // ===========================
-
       float structural =
-
         lineBand(
-
           height +
-          warp.x *
-          0.07,
+          warp2.y *
+          0.12,
 
-          10.0,
-          0.030
-
+          11.0,
+          0.029
         )
-
         *
-
-        smoothstep(
-          0.34,
-          0.84,
-          depthNoise
-        )
-
+        depth
         *
+        mountainMask;
 
-        mountainMask
-
-        *
-
-        0.72;
-
-      // ===========================
-      // LINHAS TÉCNICAS EXTERNAS
-      // ===========================
-
-      float arcs = 0.0;
-
-      vec2 arcP =
+      vec2 arcPoint =
         p;
 
-      arcP +=
+      arcPoint +=
         vec2(
-
           sin(
             t *
-            0.035
-          ) *
-          0.010,
+            0.14
+          )
+          *
+          0.028,
 
           cos(
             t *
-            0.029
-          ) *
-          0.008
-
+            0.12
+          )
+          *
+          0.020
         );
 
-      arcs +=
+      float arcs =
+        0.0;
 
+      arcs +=
         arcStroke(
-          arcP,
+          arcPoint,
+
           vec2(
-            -0.05,
-            -0.03
+            -0.06,
+            -0.02
           ),
-          0.48,
-          0.0012
+
+          0.48 +
+          sin(
+            t *
+            0.10
+          )
+          *
+          0.018,
+
+          0.0011
         )
-
         *
-
-        0.32;
+        0.26;
 
       arcs +=
-
         arcStroke(
-          arcP,
+          arcPoint,
+
           vec2(
-            0.05,
-            -0.06
+            0.08,
+            -0.05
           ),
-          0.61,
+
+          0.61 +
+          cos(
+            t *
+            0.085
+          )
+          *
+          0.022,
+
           0.0010
         )
-
         *
-
-        0.22;
+        0.20;
 
       arcs +=
-
         arcStroke(
-          arcP,
+          arcPoint,
+
           vec2(
-            -0.16,
-            0.00
+            -0.13,
+            0.01
           ),
-          0.73,
+
+          0.73 +
+          sin(
+            t *
+            0.07
+          )
+          *
+          0.025,
+
           0.0009
         )
-
         *
+        0.14;
 
-        0.16;
-
-      float verticalGuide =
+      float guides =
+        arcs +
 
         thinLine(
-
           p.x +
-          0.60 +
+          0.61 +
 
           sin(
             t *
-            0.026
-          ) *
-          0.008,
+            0.10
+          )
+          *
+          0.018,
 
           0.0007
-
         )
-
         *
-
-        0.18;
-
-      float verticalGuide2 =
+        0.16 +
 
         thinLine(
-
           p.x -
-          0.33 +
+          0.34 +
 
           cos(
             t *
-            0.022
-          ) *
-          0.008,
+            0.09
+          )
+          *
+          0.014,
 
           0.00065
-
         )
-
         *
-
-        0.13;
-
-      float horizontalGuide =
+        0.12 +
 
         thinLine(
-
           p.y +
           0.28 +
 
           sin(
             t *
-            0.021
-          ) *
-          0.006,
+            0.08
+          )
+          *
+          0.012,
 
           0.00065
-
         )
-
         *
+        0.09;
 
-        0.10;
-
-      float guides =
-        arcs +
-        verticalGuide +
-        verticalGuide2 +
-        horizontalGuide;
-
-      // ===========================
-      // PEQUENOS PONTOS
-      // ===========================
-
-      vec2 grid =
-        floor(
-          (
-            p +
-            vec2(
-              0.94,
-              0.52
-            )
-          )
-          *
-          42.0
-        );
-
-      float dotsNoise =
-        hash21(grid);
-
-      vec2 gridUv =
-
-        fract(
-
-          (
-            p +
-            vec2(
-              0.94,
-              0.52
-            )
-          )
-
-          *
-
-          42.0
-
-        )
-
-        -
-
-        0.5;
-
-      float dots =
-
-        (
-          1.0 -
-          smoothstep(
-            0.032,
-            0.060,
-            length(gridUv)
-          )
-        )
-
-        *
-
-        step(
-          0.965,
-          dotsNoise
-        )
-
-        *
-
-        0.10;
-
-      // ===========================
-      // FUNDO
-      // ===========================
-
-      vec3 bg =
+      vec3 background =
         vec3(
           0.964,
           0.953,
           0.933
         );
 
-      float ambient =
-
-        0.018 *
+      background +=
+        0.010 *
         sin(
           p.x *
-          1.9 +
+          2.0 +
           t *
-          0.018
-        )
+          0.10
+        );
 
-        +
-
-        0.014 *
+      background +=
+        0.008 *
         cos(
           p.y *
-          2.3 -
+          2.4 -
           t *
-          0.016
+          0.08
         );
 
-      bg += ambient;
-
-      float rightLight =
-
-        exp(
-
-          -dot(
-
-            p -
-            vec2(
-              0.53,
-              0.12
-            ),
-
-            p -
-            vec2(
-              0.53,
-              0.12
-            )
-
-          )
-
-          *
-
-          1.20
-
-        );
-
-      bg +=
-        rightLight *
-        0.018;
-
-      // ===========================
-      // CORES DAS LINHAS
-      // ===========================
-
-      vec3 lineSoft =
+      vec3 soft =
         vec3(
-          0.62,
-          0.62,
-          0.63
+          0.62
         );
 
-      vec3 lineMid =
+      vec3 middle =
         vec3(
-          0.48,
-          0.48,
-          0.50
+          0.45
         );
 
-      vec3 lineDark =
+      vec3 dark =
         vec3(
-          0.30,
-          0.30,
-          0.32
+          0.25
         );
 
       vec3 color =
-        bg;
+        background;
 
       color =
         mix(
           color,
-          lineSoft,
+          soft,
+
           clamp(
             lineAmount *
             0.42,
+
             0.0,
-            0.36
+            0.34
           )
         );
 
       color =
         mix(
           color,
-          lineMid,
+          middle,
+
           clamp(
             lineAmount *
-            0.26,
+            0.28,
+
             0.0,
-            0.22
+            0.24
           )
         );
 
       color =
         mix(
           color,
-          lineDark,
+          dark,
+
           clamp(
             structural *
-            0.36,
+            0.34,
+
             0.0,
             0.18
           )
@@ -791,59 +957,15 @@
       color =
         mix(
           color,
-          vec3(0.52),
+          vec3(
+            0.50
+          ),
+
           clamp(
             guides,
             0.0,
-            0.12
+            0.10
           )
-        );
-
-      color =
-        mix(
-          color,
-          vec3(0.44),
-          clamp(
-            dots,
-            0.0,
-            0.06
-          )
-        );
-
-      float vignette =
-        smoothstep(
-
-          1.18,
-          0.18,
-
-          dot(
-
-            p *
-            vec2(
-              0.68,
-              0.92
-            ),
-
-            p *
-            vec2(
-              0.68,
-              0.92
-            )
-
-          )
-
-        );
-
-      color =
-        mix(
-
-          bg,
-          color,
-
-          0.88 +
-          vignette *
-          0.12
-
         );
 
       outColor =
@@ -855,7 +977,6 @@
   `;
 
   function createShader(type, source) {
-
     const shader =
       gl.createShader(type);
 
@@ -864,7 +985,9 @@
       source
     );
 
-    gl.compileShader(shader);
+    gl.compileShader(
+      shader
+    );
 
     if (
       !gl.getShaderParameter(
@@ -872,14 +995,17 @@
         gl.COMPILE_STATUS
       )
     ) {
+      const message =
+        gl.getShaderInfoLog(
+          shader
+        );
 
-      const log =
-        gl.getShaderInfoLog(shader);
-
-      gl.deleteShader(shader);
+      gl.deleteShader(
+        shader
+      );
 
       throw new Error(
-        log ||
+        message ||
         "Erro ao compilar shader."
       );
     }
@@ -887,25 +1013,21 @@
     return shader;
   }
 
-  function createProgram(
-    vertexSource,
-    fragmentSource
-  ) {
-
-    const program =
-      gl.createProgram();
-
+  function createProgram() {
     const vertexShader =
       createShader(
         gl.VERTEX_SHADER,
-        vertexSource
+        vertexShaderSource
       );
 
     const fragmentShader =
       createShader(
         gl.FRAGMENT_SHADER,
-        fragmentSource
+        fragmentShaderSource
       );
+
+    const program =
+      gl.createProgram();
 
     gl.attachShader(
       program,
@@ -917,7 +1039,9 @@
       fragmentShader
     );
 
-    gl.linkProgram(program);
+    gl.linkProgram(
+      program
+    );
 
     gl.deleteShader(
       vertexShader
@@ -933,8 +1057,7 @@
         gl.LINK_STATUS
       )
     ) {
-
-      const log =
+      const message =
         gl.getProgramInfoLog(
           program
         );
@@ -944,8 +1067,8 @@
       );
 
       throw new Error(
-        log ||
-        "Erro ao criar programa WebGL."
+        message ||
+        "Erro ao linkar programa WebGL."
       );
     }
 
@@ -955,27 +1078,26 @@
   let program;
 
   try {
-
     program =
-      createProgram(
-        vertexShaderSource,
-        fragmentShaderSource
-      );
+      createProgram();
+  }
+  catch (error) {
+    console.error(
+      error
+    );
 
-  } catch (error) {
+    if (fallback) {
+      fallback.hidden =
+        false;
 
-    console.error(error);
-
-    fallback.hidden =
-      false;
-
-    fallback.textContent =
-      "Falha ao iniciar a arte WebGL.";
+      fallback.textContent =
+        "Erro ao carregar a arte WebGL. Abra o console para ver o erro.";
+    }
 
     return;
   }
 
-  const positions =
+  const vertices =
     new Float32Array([
       -1, -1,
        1, -1,
@@ -989,7 +1111,9 @@
   const vao =
     gl.createVertexArray();
 
-  gl.bindVertexArray(vao);
+  gl.bindVertexArray(
+    vao
+  );
 
   const buffer =
     gl.createBuffer();
@@ -1001,11 +1125,13 @@
 
   gl.bufferData(
     gl.ARRAY_BUFFER,
-    positions,
+    vertices,
     gl.STATIC_DRAW
   );
 
-  gl.enableVertexAttribArray(0);
+  gl.enableVertexAttribArray(
+    0
+  );
 
   gl.vertexAttribPointer(
     0,
@@ -1016,35 +1142,31 @@
     0
   );
 
-  const uniforms = {
+  const resolutionLocation =
+    gl.getUniformLocation(
+      program,
+      "u_resolution"
+    );
 
-    resolution:
-      gl.getUniformLocation(
-        program,
-        "u_resolution"
-      ),
+  const mouseLocation =
+    gl.getUniformLocation(
+      program,
+      "u_mouse"
+    );
 
-    mouse:
-      gl.getUniformLocation(
-        program,
-        "u_mouse"
-      ),
+  const timeLocation =
+    gl.getUniformLocation(
+      program,
+      "u_time"
+    );
 
-    time:
-      gl.getUniformLocation(
-        program,
-        "u_time"
-      ),
-
-    motion:
-      gl.getUniformLocation(
-        program,
-        "u_motion"
-      )
-  };
+  const motionLocation =
+    gl.getUniformLocation(
+      program,
+      "u_motion"
+    );
 
   const pointer = {
-
     x: 0.5,
     y: 0.5,
 
@@ -1058,7 +1180,6 @@
   window.addEventListener(
     "pointermove",
     (event) => {
-
       pointer.targetX =
         event.clientX /
         window.innerWidth;
@@ -1076,7 +1197,6 @@
   window.addEventListener(
     "pointerleave",
     () => {
-
       pointer.targetX =
         0.5;
 
@@ -1089,11 +1209,10 @@
   );
 
   function resize() {
-
     const dpr =
       Math.min(
         window.devicePixelRatio || 1,
-        1.75
+        1.50
       );
 
     const width =
@@ -1118,7 +1237,6 @@
       canvas.width !== width ||
       canvas.height !== height
     ) {
-
       canvas.width =
         width;
 
@@ -1134,35 +1252,38 @@
     }
   }
 
-  const reducedMotion =
-    window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    );
+  // velocidade geral da animação
+  const SPEED =
+    2.4;
 
-  let start =
+  let startTime =
     performance.now();
 
-  let last =
-    start;
+  let previousTime =
+    startTime;
 
   function render(now) {
-
     resize();
 
-    const dt =
+    const delta =
       Math.min(
         0.05,
-        (now - last) /
+        (
+          now -
+          previousTime
+        )
+        /
         1000
       );
 
-    last = now;
+    previousTime =
+      now;
 
-    const ease =
+    const smoothing =
       1.0 -
       Math.pow(
         0.001,
-        dt
+        delta
       );
 
     pointer.x +=
@@ -1171,7 +1292,7 @@
         pointer.x
       )
       *
-      ease;
+      smoothing;
 
     pointer.y +=
       (
@@ -1179,7 +1300,7 @@
         pointer.y
       )
       *
-      ease;
+      smoothing;
 
     pointer.motion +=
       (
@@ -1187,49 +1308,50 @@
         pointer.motion
       )
       *
-      ease
+      smoothing
       *
-      0.72;
+      0.70;
 
-    const elapsed =
+    const time =
       (
-        now -
-        start
+        (
+          now -
+          startTime
+        )
+        /
+        1000
       )
-      /
-      1000;
+      *
+      SPEED;
 
-    const shaderTime =
-      reducedMotion.matches
-        ? elapsed * 0.08
-        : elapsed;
+    gl.useProgram(
+      program
+    );
 
-    gl.useProgram(program);
-
-    gl.bindVertexArray(vao);
+    gl.bindVertexArray(
+      vao
+    );
 
     gl.uniform2f(
-      uniforms.resolution,
+      resolutionLocation,
       canvas.width,
       canvas.height
     );
 
     gl.uniform2f(
-      uniforms.mouse,
+      mouseLocation,
       pointer.x,
       pointer.y
     );
 
     gl.uniform1f(
-      uniforms.time,
-      shaderTime
+      timeLocation,
+      time
     );
 
     gl.uniform1f(
-      uniforms.motion,
-      reducedMotion.matches
-        ? 0.0
-        : pointer.motion
+      motionLocation,
+      pointer.motion
     );
 
     gl.drawArrays(
