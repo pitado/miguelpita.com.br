@@ -2,7 +2,7 @@
   "use strict";
 
   console.log(
-    "%cWEBGL ART V3 CARREGADO",
+    "%cWEBGL1 ART V4 CARREGADO",
     "background:#111;color:#fff;padding:5px 8px;border-radius:5px;font-weight:bold"
   );
 
@@ -14,18 +14,20 @@
     return;
   }
 
-  const gl = canvas.getContext("webgl2", {
-    alpha: false,
-    antialias: false,
-    depth: false,
-    stencil: false,
-    premultipliedAlpha: false,
-    preserveDrawingBuffer: false,
-    powerPreference: "high-performance"
-  });
+  const gl =
+    canvas.getContext("webgl", {
+      alpha: false,
+      antialias: false,
+      depth: false,
+      stencil: false,
+      premultipliedAlpha: false,
+      preserveDrawingBuffer: false,
+      powerPreference: "high-performance"
+    }) ||
+    canvas.getContext("experimental-webgl");
 
   if (!gl) {
-    console.error("WebGL2 não disponível.");
+    console.error("WebGL não disponível.");
 
     if (fallback) {
       fallback.hidden = false;
@@ -34,22 +36,24 @@
     return;
   }
 
-  const vertexShaderSource = `#version 300 es
+  const vertexShaderSource = `
 
     precision highp float;
 
-    layout(location = 0) in vec2 a_position;
+    attribute vec2 a_position;
 
     void main() {
       gl_Position = vec4(a_position, 0.0, 1.0);
     }
   `;
 
-  const fragmentShaderSource = `#version 300 es
+  const fragmentShaderSource = `
 
-    precision highp float;
-
-    out vec4 outColor;
+    #ifdef GL_FRAGMENT_PRECISION_HIGH
+      precision highp float;
+    #else
+      precision mediump float;
+    #endif
 
     uniform vec2 u_resolution;
     uniform vec2 u_mouse;
@@ -968,7 +972,7 @@
           )
         );
 
-      outColor =
+      gl_FragColor =
         vec4(
           color,
           1.0
@@ -1108,13 +1112,6 @@
        1,  1
     ]);
 
-  const vao =
-    gl.createVertexArray();
-
-  gl.bindVertexArray(
-    vao
-  );
-
   const buffer =
     gl.createBuffer();
 
@@ -1129,12 +1126,18 @@
     gl.STATIC_DRAW
   );
 
+  const positionLocation =
+    gl.getAttribLocation(
+      program,
+      "a_position"
+    );
+
   gl.enableVertexAttribArray(
-    0
+    positionLocation
   );
 
   gl.vertexAttribPointer(
-    0,
+    positionLocation,
     2,
     gl.FLOAT,
     false,
@@ -1252,9 +1255,9 @@
     }
   }
 
-  // velocidade geral da animação
+  // velocidade geral
   const SPEED =
-    2.4;
+    3.2;
 
   let startTime =
     performance.now();
@@ -1328,10 +1331,6 @@
       program
     );
 
-    gl.bindVertexArray(
-      vao
-    );
-
     gl.uniform2f(
       resolutionLocation,
       canvas.width,
@@ -1364,6 +1363,18 @@
       render
     );
   }
+
+  canvas.addEventListener(
+    "webglcontextlost",
+    (event) => {
+      event.preventDefault();
+
+      console.warn(
+        "Contexto WebGL perdido. Recarregue a página."
+      );
+    },
+    false
+  );
 
   requestAnimationFrame(
     render
