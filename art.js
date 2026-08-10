@@ -26,7 +26,7 @@
 
   if (!window.MPAdaptiveArt) {
     console.error(
-      "adaptive-profile.js não foi carregado."
+      "adaptive-profile.js V8 não carregou."
     );
 
     return;
@@ -36,89 +36,127 @@
     window.MPAdaptiveArt
       .createProfile();
 
-  let ART =
-    profile.config;
+  let QUALITY =
+    profile.quality;
+
+  const DNA =
+    profile.geometry;
 
   console.log(
-    "%c MIGUEL PITA · ADAPTIVE GPU V7 ",
+    "%c MIGUEL PITA · GPU DNA V8 ",
     "background:#111;color:#fff;padding:5px 9px;border-radius:5px;font-weight:bold"
   );
 
   console.log(
-    "Perfil inicial:",
+    "DNA do dispositivo:",
     {
-      tier:
-        profile.tier,
-
-      powerScore:
-        profile.powerScore,
-
       seed:
         profile.identity.seed,
+
+      id:
+        profile.identity.hash
+          .toString(16)
+          .padStart(
+            8,
+            "0"
+          ),
 
       renderer:
         profile.identity.renderer,
 
-      config:
-        ART
+      geometry:
+        DNA
     }
+  );
+
+  console.log(
+    "Qualidade inicial:",
+    QUALITY
   );
 
   if (signature) {
     signature.textContent =
-      `${profile.tier} · ${profile.powerScore} · seed ${profile.identity.hash
+      `DNA ${profile.identity.hash
         .toString(16)
         .slice(0, 8)}`;
   }
 
   const gl =
+
     canvas.getContext(
       "webgl",
       {
-        alpha: false,
-        antialias: false,
-        depth: false,
-        stencil: false,
-        premultipliedAlpha: false,
-        preserveDrawingBuffer: false,
+        alpha:
+          false,
+
+        antialias:
+          false,
+
+        depth:
+          false,
+
+        stencil:
+          false,
+
+        premultipliedAlpha:
+          false,
+
+        preserveDrawingBuffer:
+          false,
+
         powerPreference:
           "high-performance"
       }
     )
+
     ||
+
     canvas.getContext(
       "experimental-webgl"
     );
 
   if (!gl) {
+    console.warn(
+      "WebGL indisponível. Usando fallback 2D."
+    );
+
     startCanvasFallback();
+
     return;
   }
 
   console.log(
-    "%c WEBGL 1 ATIVO ",
+    "%c WEBGL 1 ATIVO · DNA NA GPU ",
     "background:#315c39;color:#fff;padding:4px 8px;border-radius:4px"
   );
 
   const vertexSource = `
+
     attribute vec2 a_position;
 
     void main() {
+
       gl_Position =
         vec4(
           a_position,
           0.0,
           1.0
         );
+
     }
+
   `;
 
   const fragmentSource = `
 
     #ifdef GL_FRAGMENT_PRECISION_HIGH
+
       precision highp float;
+
     #else
+
       precision mediump float;
+
     #endif
 
 
@@ -126,44 +164,88 @@
 
     uniform vec2 u_mouse;
 
+
     uniform float u_time;
 
     uniform float u_mouseStrength;
 
-
     uniform float u_seed;
 
-    uniform float u_lineDensity;
+
+    uniform float u_fineDensity;
+
+    uniform float u_secondaryDensity;
 
     uniform float u_structuralDensity;
 
-    uniform float u_warpStrength;
+    uniform float u_microDetail;
 
-    uniform float u_detailStrength;
+    uniform float u_noiseWeight;
 
     uniform float u_arcOpacity;
 
 
-    uniform vec2 u_massOffset;
+    uniform float u_globalAngle;
 
-    uniform vec2 u_massScale;
+    uniform float u_shear;
 
 
-    uniform float u_ridgeLean;
+    uniform float u_flowX;
 
-    uniform float u_flowBend;
+    uniform float u_flowY;
+
+    uniform float u_flowStrength;
+
+    uniform float u_flowDirection;
+
+
+    uniform float u_warpA;
+
+    uniform float u_warpB;
+
+    uniform float u_warpScaleA;
+
+    uniform float u_warpScaleB;
+
+
+    uniform float u_faultAngle;
+
+    uniform float u_faultOffset;
+
+    uniform float u_faultStrength;
+
+
+    uniform float u_foldFrequencyA;
+
+    uniform float u_foldFrequencyB;
+
+    uniform float u_foldStrengthA;
+
+    uniform float u_foldStrengthB;
+
 
     uniform float u_asymmetry;
 
-    uniform float u_openSpace;
+    uniform float u_rightFadeStart;
 
-    uniform float u_phaseA;
+    uniform float u_verticalFade;
 
-    uniform float u_phaseB;
 
-    uniform float u_phaseC;
+    uniform float u_breathing;
 
-    uniform float u_flowDirection;
+    uniform float u_linePhase;
+
+    uniform float u_technicalPhase;
+
+
+    uniform vec4 u_massData[6];
+
+    uniform vec4 u_massMeta[6];
+
+
+    uniform vec4 u_cavityData[3];
+
+    uniform vec4 u_cavityMeta[3];
 
 
     float hash21(
@@ -172,24 +254,31 @@
 
       p =
         fract(
+
           p *
+
           vec2(
             123.34,
             456.21
           )
+
         );
+
 
       p +=
         dot(
           p,
-          p + 45.32
+          p +
+          45.32
         );
+
 
       return
         fract(
           p.x *
           p.y
         );
+
     }
 
 
@@ -199,6 +288,7 @@
 
       vec2 i =
         floor(p);
+
 
       vec2 f =
         fract(p);
@@ -220,51 +310,63 @@
 
       float b =
         hash21(
+
           i +
+
           vec2(
             1.0,
             0.0
           )
+
         );
 
 
       float c =
         hash21(
+
           i +
+
           vec2(
             0.0,
             1.0
           )
+
         );
 
 
       float d =
         hash21(
+
           i +
+
           vec2(
             1.0,
             1.0
           )
+
         );
 
 
-      return mix(
+      return
 
         mix(
-          a,
-          b,
-          f.x
-        ),
 
-        mix(
-          c,
-          d,
-          f.x
-        ),
+          mix(
+            a,
+            b,
+            f.x
+          ),
 
-        f.y
+          mix(
+            c,
+            d,
+            f.x
+          ),
 
-      );
+          f.y
+
+        );
+
     }
 
 
@@ -275,11 +377,12 @@
       float value =
         0.0;
 
+
       float amplitude =
         0.55;
 
 
-      mat2 rotate =
+      mat2 rot =
         mat2(
 
           0.80,
@@ -303,7 +406,7 @@
 
 
         p =
-          rotate *
+          rot *
           p *
           2.03
 
@@ -317,10 +420,107 @@
 
         amplitude *=
           0.50;
+
       }
 
 
       return value;
+
+    }
+
+
+    vec2 rotate2D(
+      vec2 p,
+      float angle
+    ) {
+
+      float c =
+        cos(angle);
+
+
+      float s =
+        sin(angle);
+
+
+      return
+
+        mat2(
+
+          c,
+          -s,
+
+          s,
+          c
+
+        )
+
+        *
+
+        p;
+
+    }
+
+
+    float ellipseDistance(
+
+      vec2 p,
+
+      vec4 data,
+
+      vec4 meta
+
+    ) {
+
+      vec2 q =
+        p -
+        data.xy;
+
+
+      q =
+        rotate2D(
+          q,
+          meta.x
+        );
+
+
+      q.x +=
+        q.y *
+        meta.y;
+
+
+      q /=
+        max(
+          data.zw,
+          vec2(0.02)
+        );
+
+
+      float breathing =
+
+        sin(
+
+          u_time *
+          0.075
+
+          +
+
+          meta.w
+
+        )
+
+        *
+
+        u_breathing;
+
+
+      return
+
+        length(q)
+
+        +
+
+        breathing;
+
     }
 
 
@@ -335,9 +535,17 @@
     ) {
 
       float f =
+
         fract(
+
           value *
           density
+
+          +
+
+          u_linePhase *
+          0.03
+
         );
 
 
@@ -350,7 +558,9 @@
 
       return
 
-        1.0 -
+        1.0
+
+        -
 
         smoothstep(
 
@@ -362,37 +572,7 @@
           d
 
         );
-    }
 
-
-    float ellipseField(
-
-      vec2 p,
-
-      vec2 center,
-
-      vec2 scale,
-
-      float bend
-
-    ) {
-
-      vec2 q =
-        p -
-        center;
-
-
-      q.x +=
-        q.y *
-        bend;
-
-
-      q /=
-        scale;
-
-
-      return
-        length(q);
     }
 
 
@@ -410,14 +590,16 @@
 
       return
 
-        1.0 -
+        1.0
+
+        -
 
         smoothstep(
 
           width,
 
           width +
-          0.0025,
+          0.0023,
 
           abs(
 
@@ -433,13 +615,18 @@
           )
 
         );
+
     }
 
 
     void main() {
 
       vec2 uv =
-        gl_FragCoord.xy /
+
+        gl_FragCoord.xy
+
+        /
+
         u_resolution;
 
 
@@ -449,7 +636,11 @@
 
 
       float aspect =
-        u_resolution.x /
+
+        u_resolution.x
+
+        /
+
         u_resolution.y;
 
 
@@ -466,95 +657,99 @@
         aspect;
 
 
-      float t =
-        u_time;
-
-
       /*
-      ==============================================
-      POSIÇÃO BASE
-      ==============================================
+      =========================================
+      DNA GLOBAL
+      =========================================
       */
 
-      vec2 center =
-        u_massOffset;
+      vec2 q =
 
+        rotate2D(
 
-      center +=
+          p,
 
-        vec2(
-
-          sin(
-            t *
-            0.055 +
-            u_phaseA
-          )
-          *
-          0.018,
-
-          cos(
-            t *
-            0.047 +
-            u_phaseB
-          )
-          *
-          0.016
+          u_globalAngle *
+          0.18
 
         );
 
 
-      vec2 q =
-        p -
-        center;
+      q.x +=
+
+        q.y *
+
+        u_shear;
 
 
       /*
-      ==============================================
-      FLUXO LATERAL
-      ==============================================
+      =========================================
+      FLUXO
+      =========================================
       */
 
       q.x +=
 
-        q.y *
-        u_ridgeLean;
-
-
-      q.y +=
-
         sin(
 
-          q.x *
-          2.4
+          q.y *
+          u_flowY
 
           +
 
-          t *
-          0.060 *
+          u_time *
+          0.045 *
           u_flowDirection
 
           +
 
-          u_phaseA
+          u_seed *
+          9.0
 
         )
 
         *
 
-        u_flowBend
+        u_flowStrength;
+
+
+      q.y +=
+
+        cos(
+
+          q.x *
+          u_flowX
+
+          -
+
+          u_time *
+          0.037 *
+          u_flowDirection
+
+          +
+
+          u_seed *
+          13.0
+
+        )
 
         *
 
-        0.080;
+        u_flowStrength
+
+        *
+
+        0.72;
 
 
       /*
-      ==============================================
+      =========================================
       MOUSE
-      ==============================================
+      =========================================
       */
 
       vec2 mouseDelta =
+
         p -
         mouse;
 
@@ -570,7 +765,7 @@
 
           *
 
-          8.0
+          7.0
 
         )
 
@@ -595,13 +790,85 @@
 
         *
 
-        0.026;
+        0.030;
 
 
       /*
-      ==============================================
-      NOISE
-      ==============================================
+      =========================================
+      FALHA GEOLÓGICA
+      =========================================
+      */
+
+      vec2 faultNormal =
+
+        vec2(
+
+          cos(
+            u_faultAngle
+          ),
+
+          sin(
+            u_faultAngle
+          )
+
+        );
+
+
+      float faultSide =
+
+        dot(
+
+          q,
+
+          faultNormal
+
+        )
+
+        -
+
+        u_faultOffset;
+
+
+      q +=
+
+        faultNormal.yx
+
+        *
+
+        vec2(
+          1.0,
+          -1.0
+        )
+
+        *
+
+        sign(
+          faultSide
+        )
+
+        *
+
+        u_faultStrength
+
+        *
+
+        smoothstep(
+
+          0.0,
+
+          0.18,
+
+          abs(
+            faultSide
+          )
+
+        );
+
+
+      /*
+      =========================================
+      WARP
+      =========================================
       */
 
       float n1 =
@@ -609,17 +876,17 @@
         fbm(
 
           q *
-          1.70
+          u_warpScaleA
 
           +
 
           vec2(
 
-            t *
-            0.030,
+            u_time *
+            0.022,
 
-            -t *
-            0.022
+            -u_time *
+            0.018
 
           )
 
@@ -636,24 +903,24 @@
         fbm(
 
           q *
-          3.30
+          u_warpScaleB
 
           +
 
           vec2(
 
-            -t *
-            0.020,
+            -u_time *
+            0.017,
 
-            t *
-            0.027
+            u_time *
+            0.021
 
           )
 
           +
 
           u_seed *
-          13.0
+          17.0
 
         );
 
@@ -671,7 +938,7 @@
 
         *
 
-        u_warpStrength;
+        u_warpA;
 
 
       warped.y +=
@@ -683,252 +950,273 @@
 
         *
 
-        u_warpStrength
-
-        *
-
-        0.78;
+        u_warpB;
 
 
       /*
-      ==============================================
-      MASSAS PRINCIPAIS
-
-      Elas criam o formato assimétrico.
-      ==============================================
+      =========================================
+      MASSAS DO DNA
+      =========================================
       */
 
-      float m1 =
-
-        ellipseField(
-
-          warped,
-
-          vec2(
-            -0.16,
-            0.02
-          ),
-
-          vec2(
-
-            0.60 *
-            u_massScale.x,
-
-            0.42 *
-            u_massScale.y
-
-          ),
-
-          0.12
-
-          +
-
-          u_ridgeLean *
-          0.35
-
-        );
+      float combined =
+        100.0;
 
 
-      float m2 =
-
-        ellipseField(
-
-          warped,
-
-          vec2(
-
-            0.04,
-
-            -0.09
-
-            +
-
-            u_asymmetry *
-            0.10
-
-          ),
-
-          vec2(
-
-            0.48 *
-            u_massScale.x,
-
-            0.27 *
-            u_massScale.y
-
-          ),
-
-          -0.25
-
-          +
-
-          u_asymmetry *
-          0.28
-
-        );
+      float softPresence =
+        0.0;
 
 
-      float m3 =
+      for (
 
-        ellipseField(
+        int i = 0;
 
-          warped,
+        i < 6;
 
-          vec2(
+        i++
 
-            -0.30,
+      ) {
 
-            0.18
+        float d =
 
-            -
+          ellipseDistance(
 
-            u_asymmetry *
-            0.12
+            warped,
 
-          ),
+            u_massData[i],
 
-          vec2(
+            u_massMeta[i]
 
-            0.38 *
-            u_massScale.x,
-
-            0.23 *
-            u_massScale.y
-
-          ),
-
-          0.30
-
-          -
-
-          u_ridgeLean *
-          0.25
-
-        );
+          );
 
 
-      float m4 =
+        float weighted =
 
-        ellipseField(
+          d
 
-          warped,
+          /
 
-          vec2(
-            0.16,
-            0.18
-          ),
+          max(
 
-          vec2(
+            0.25,
 
-            0.30 *
-            u_massScale.x,
+            u_massMeta[i].z
 
-            0.17 *
-            u_massScale.y
-
-          ),
-
-          -0.12
-
-        );
+          );
 
 
-      /*
-      ==============================================
-      CAMPO
-      ==============================================
-      */
-
-      float field =
-
-        min(
+        combined =
 
           min(
 
-            m1,
+            combined,
 
-            m2 +
-            0.10
+            weighted
 
-          ),
+          );
 
-          min(
 
-            m3 +
-            0.15,
+        softPresence +=
 
-            m4 +
-            0.22
+          exp(
+
+            -weighted *
+
+            weighted *
+
+            2.1
 
           )
 
-        );
+          *
+
+          u_massMeta[i].z;
+
+      }
 
 
       /*
-      ==============================================
-      DOBRAS
-      ==============================================
+      =========================================
+      CAVIDADES
+      =========================================
       */
 
-      field +=
+      float cavityForce =
+        0.0;
+
+
+      for (
+
+        int i = 0;
+
+        i < 3;
+
+        i++
+
+      ) {
+
+        vec2 c =
+
+          warped
+
+          -
+
+          u_cavityData[i].xy;
+
+
+        c =
+
+          rotate2D(
+
+            c,
+
+            u_cavityMeta[i].x
+
+          );
+
+
+        c /=
+
+          max(
+
+            u_cavityData[i].zw,
+
+            vec2(
+              0.02
+            )
+
+          );
+
+
+        float cd =
+          length(c);
+
+
+        cavityForce +=
+
+          exp(
+
+            -cd *
+            cd *
+            2.4
+
+          )
+
+          *
+
+          u_cavityMeta[i].y
+
+          *
+
+          (
+
+            0.80
+
+            +
+
+            0.20
+
+            *
+
+            sin(
+
+              u_time *
+              0.055
+
+              +
+
+              u_cavityMeta[i].z
+
+            )
+
+          );
+
+      }
+
+
+      /*
+      =========================================
+      DOBRAS
+      =========================================
+      */
+
+      float foldA =
 
         sin(
 
           warped.x *
-          3.4
+          u_foldFrequencyA
 
           +
 
           warped.y *
-          1.55
+          (
+            0.7 +
+            u_asymmetry *
+            2.0
+          )
 
           +
 
-          u_phaseB
+          u_linePhase
 
           +
 
-          t *
-          0.050
+          u_time *
+          0.034
 
         )
 
         *
 
-        u_detailStrength;
+        u_foldStrengthA;
 
 
-      field +=
+      float foldB =
 
-        sin(
+        cos(
 
-          warped.x *
-          1.55
+          warped.y *
+          u_foldFrequencyB
 
           -
 
-          warped.y *
-          4.1
+          warped.x *
+          (
+            0.9 +
+            u_asymmetry *
+            1.5
+          )
 
           +
 
-          u_phaseC
+          u_technicalPhase
 
           -
 
-          t *
-          0.037
+          u_time *
+          0.027
 
         )
 
         *
 
-        u_detailStrength
+        u_foldStrengthB;
 
-        *
 
-        0.55;
+      /*
+      =========================================
+      CAMPO FINAL
+      =========================================
+      */
+
+      float field =
+        combined;
+
+
+      field +=
+        foldA +
+        foldB;
 
 
       field +=
@@ -940,11 +1228,11 @@
 
         *
 
-        u_detailStrength
+        u_microDetail
 
         *
 
-        0.90;
+        u_noiseWeight;
 
 
       field +=
@@ -956,65 +1244,72 @@
 
         *
 
-        u_detailStrength
+        u_microDetail
 
         *
 
-        0.44;
+        0.55
+
+        *
+
+        u_noiseWeight;
+
+
+      field +=
+
+        cavityForce *
+
+        0.22;
 
 
       /*
-      ==============================================
+      =========================================
       MÁSCARA
-      ==============================================
+      =========================================
       */
 
-      float massMask =
-
-        1.0 -
+      float presenceMask =
 
         smoothstep(
 
-          0.82,
+          0.10,
 
-          1.28,
+          1.15,
 
-          field
+          softPresence
 
         );
 
 
-      float rightEdge =
+      float shapeMask =
 
-        mix(
+        1.0
 
-          0.38,
+        -
 
-          0.12,
+        smoothstep(
 
-          clamp(
+          0.78,
 
-            u_openSpace,
+          1.32,
 
-            0.55,
-
-            0.80
-
-          )
+          combined
 
         );
 
 
       float rightFade =
 
-        1.0 -
+        1.0
+
+        -
 
         smoothstep(
 
-          rightEdge,
+          u_rightFadeStart,
 
-          rightEdge +
-          0.55,
+          u_rightFadeStart +
+          0.62,
 
           p.x
 
@@ -1023,13 +1318,16 @@
 
       float verticalFade =
 
-        1.0 -
+        1.0
+
+        -
 
         smoothstep(
 
-          0.46,
+          u_verticalFade,
 
-          0.74,
+          u_verticalFade +
+          0.18,
 
           abs(
             p.y
@@ -1042,9 +1340,9 @@
 
         smoothstep(
 
-          -1.20,
+          -1.24,
 
-          -0.94,
+          -0.96,
 
           p.x
 
@@ -1053,7 +1351,14 @@
 
       float mask =
 
-        massMask
+        max(
+
+          shapeMask,
+
+          presenceMask *
+          0.52
+
+        )
 
         *
 
@@ -1069,25 +1374,25 @@
 
 
       /*
-      ==============================================
-      LINHAS FINAS
-      ==============================================
+      =========================================
+      LINHAS
+      =========================================
       */
 
-      float fine1 =
+      float fineA =
 
         contour(
 
           field,
 
-          u_lineDensity,
+          u_fineDensity,
 
           0.050
 
         );
 
 
-      float fine2 =
+      float fineB =
 
         contour(
 
@@ -1096,17 +1401,16 @@
           +
 
           n1 *
-          0.018,
+          0.015,
 
-          u_lineDensity *
-          0.76,
+          u_secondaryDensity,
 
-          0.042
+          0.041
 
         );
 
 
-      float fine3 =
+      float fineC =
 
         contour(
 
@@ -1115,12 +1419,12 @@
           +
 
           n2 *
-          0.012,
+          0.010,
 
-          u_lineDensity *
-          0.54,
+          u_secondaryDensity *
+          0.67,
 
-          0.035
+          0.034
 
         );
 
@@ -1129,18 +1433,18 @@
 
         (
 
-          fine1 *
-          0.45
+          fineA *
+          0.46
 
           +
 
-          fine2 *
-          0.28
+          fineB *
+          0.27
 
           +
 
-          fine3 *
-          0.18
+          fineC *
+          0.16
 
         )
 
@@ -1148,12 +1452,6 @@
 
         mask;
 
-
-      /*
-      ==============================================
-      LINHAS ESTRUTURAIS
-      ==============================================
-      */
 
       float structural =
 
@@ -1163,12 +1461,12 @@
 
           +
 
-          n1 *
-          0.010,
+          foldA *
+          0.25,
 
           u_structuralDensity,
 
-          0.028
+          0.027
 
         )
 
@@ -1178,49 +1476,39 @@
 
 
       /*
-      ==============================================
+      =========================================
       ARCOS TÉCNICOS
-      ==============================================
+      =========================================
       */
 
-      vec2 arcP =
-
-        p
-
-        +
+      vec2 technicalCenter =
 
         vec2(
 
+          -0.10
+
+          +
+
           sin(
-
-            t *
-            0.025
-
-            +
-
-            u_phaseA
-
+            u_technicalPhase
           )
 
           *
 
-          0.010,
+          0.16,
 
+
+          -0.02
+
+          +
 
           cos(
-
-            t *
-            0.021
-
-            +
-
-            u_phaseB
-
+            u_technicalPhase
           )
 
           *
 
-          0.008
+          0.10
 
         );
 
@@ -1233,16 +1521,26 @@
 
         ringStroke(
 
-          arcP,
+          p,
 
-          vec2(
-            -0.08,
-            -0.02
-          ),
+          technicalCenter,
 
-          0.55,
+          0.48
 
-          0.0007
+          +
+
+          fract(
+
+            u_seed *
+            9.13
+
+          )
+
+          *
+
+          0.12,
+
+          0.00075
 
         )
 
@@ -1255,14 +1553,31 @@
 
         ringStroke(
 
-          arcP,
+          p,
+
+          technicalCenter
+
+          +
 
           vec2(
-            0.08,
+            0.16,
             -0.08
           ),
 
-          0.72,
+          0.67
+
+          +
+
+          fract(
+
+            u_seed *
+            17.71
+
+          )
+
+          *
+
+          0.14,
 
           0.00065
 
@@ -1274,44 +1589,20 @@
 
         *
 
-        0.72;
-
-
-      technical +=
-
-        ringStroke(
-
-          arcP,
-
-          vec2(
-            -0.20,
-            0.04
-          ),
-
-          0.88,
-
-          0.00060
-
-        )
-
-        *
-
-        u_arcOpacity
-
-        *
-
-        0.48;
+        0.62;
 
 
       technical *=
 
-        1.0 -
+        1.0
+
+        -
 
         smoothstep(
 
-          0.42,
+          0.40,
 
-          0.92,
+          0.90,
 
           p.x
 
@@ -1319,9 +1610,9 @@
 
 
       /*
-      ==============================================
-      BACKGROUND
-      ==============================================
+      =========================================
+      FUNDO
+      =========================================
       */
 
       vec3 background =
@@ -1342,28 +1633,29 @@
         sin(
 
           p.x *
-          1.4
+          1.2
 
           +
 
-          t *
-          0.015
+          u_time *
+          0.012
 
           +
 
-          u_phaseA
+          u_seed *
+          8.0
 
         )
 
         *
 
-        0.0022;
+        0.0020;
 
 
       /*
-      ==============================================
-      CORES
-      ==============================================
+      =========================================
+      COR
+      =========================================
       */
 
       vec3 color =
@@ -1377,17 +1669,17 @@
           color,
 
           vec3(
-            0.50
+            0.51
           ),
 
           clamp(
 
             fineLines *
-            0.22,
+            0.225,
 
             0.0,
 
-            0.22
+            0.225
 
           )
 
@@ -1401,17 +1693,17 @@
           color,
 
           vec3(
-            0.29
+            0.28
           ),
 
           clamp(
 
             structural *
-            0.15,
+            0.155,
 
             0.0,
 
-            0.15
+            0.155
 
           )
 
@@ -1434,7 +1726,7 @@
 
             0.0,
 
-            0.065
+            0.060
 
           )
 
@@ -1450,7 +1742,9 @@
           1.0
 
         );
+
     }
+
   `;
 
 
@@ -1477,19 +1771,13 @@
 
 
     if (
-
       !gl.getShaderParameter(
-
         shader,
-
         gl.COMPILE_STATUS
-
       )
-
     ) {
 
       const error =
-
         gl.getShaderInfoLog(
           shader
         );
@@ -1501,11 +1789,8 @@
 
 
       throw new Error(
-
         error ||
-
         "Erro ao compilar shader."
-
       );
     }
 
@@ -1516,25 +1801,17 @@
 
   function createProgram() {
 
-    const vertexShader =
-
+    const vs =
       createShader(
-
         gl.VERTEX_SHADER,
-
         vertexSource
-
       );
 
 
-    const fragmentShader =
-
+    const fs =
       createShader(
-
         gl.FRAGMENT_SHADER,
-
         fragmentSource
-
       );
 
 
@@ -1543,20 +1820,14 @@
 
 
     gl.attachShader(
-
       program,
-
-      vertexShader
-
+      vs
     );
 
 
     gl.attachShader(
-
       program,
-
-      fragmentShader
-
+      fs
     );
 
 
@@ -1566,25 +1837,20 @@
 
 
     gl.deleteShader(
-      vertexShader
+      vs
     );
 
 
     gl.deleteShader(
-      fragmentShader
+      fs
     );
 
 
     if (
-
       !gl.getProgramParameter(
-
         program,
-
         gl.LINK_STATUS
-
       )
-
     ) {
 
       throw new Error(
@@ -1614,7 +1880,7 @@
   catch (error) {
 
     console.error(
-      "Erro WebGL:",
+      "Erro no shader V8:",
       error
     );
 
@@ -1627,9 +1893,9 @@
 
 
   /*
-  ==============================================
-  FULLSCREEN QUAD
-  ==============================================
+  =========================================
+  QUAD
+  =========================================
   */
 
   const vertices =
@@ -1657,40 +1923,28 @@
 
 
   gl.bindBuffer(
-
     gl.ARRAY_BUFFER,
-
     buffer
-
   );
 
 
   gl.bufferData(
-
     gl.ARRAY_BUFFER,
-
     vertices,
-
     gl.STATIC_DRAW
-
   );
 
 
   const positionLocation =
 
     gl.getAttribLocation(
-
       program,
-
       "a_position"
-
     );
 
 
   gl.enableVertexAttribArray(
-
     positionLocation
-
   );
 
 
@@ -1712,9 +1966,9 @@
 
 
   /*
-  ==============================================
+  =========================================
   UNIFORMS
-  ==============================================
+  =========================================
   */
 
   const uniformNames = [
@@ -1729,35 +1983,63 @@
 
     "u_seed",
 
-    "u_lineDensity",
+    "u_fineDensity",
+
+    "u_secondaryDensity",
 
     "u_structuralDensity",
 
-    "u_warpStrength",
+    "u_microDetail",
 
-    "u_detailStrength",
+    "u_noiseWeight",
 
     "u_arcOpacity",
 
-    "u_massOffset",
+    "u_globalAngle",
 
-    "u_massScale",
+    "u_shear",
 
-    "u_ridgeLean",
+    "u_flowX",
 
-    "u_flowBend",
+    "u_flowY",
+
+    "u_flowStrength",
+
+    "u_flowDirection",
+
+    "u_warpA",
+
+    "u_warpB",
+
+    "u_warpScaleA",
+
+    "u_warpScaleB",
+
+    "u_faultAngle",
+
+    "u_faultOffset",
+
+    "u_faultStrength",
+
+    "u_foldFrequencyA",
+
+    "u_foldFrequencyB",
+
+    "u_foldStrengthA",
+
+    "u_foldStrengthB",
 
     "u_asymmetry",
 
-    "u_openSpace",
+    "u_rightFadeStart",
 
-    "u_phaseA",
+    "u_verticalFade",
 
-    "u_phaseB",
+    "u_breathing",
 
-    "u_phaseC",
+    "u_linePhase",
 
-    "u_flowDirection"
+    "u_technicalPhase"
 
   ];
 
@@ -1782,10 +2064,54 @@
   );
 
 
+  uniforms.u_massData =
+
+    gl.getUniformLocation(
+
+      program,
+
+      "u_massData[0]"
+
+    );
+
+
+  uniforms.u_massMeta =
+
+    gl.getUniformLocation(
+
+      program,
+
+      "u_massMeta[0]"
+
+    );
+
+
+  uniforms.u_cavityData =
+
+    gl.getUniformLocation(
+
+      program,
+
+      "u_cavityData[0]"
+
+    );
+
+
+  uniforms.u_cavityMeta =
+
+    gl.getUniformLocation(
+
+      program,
+
+      "u_cavityMeta[0]"
+
+    );
+
+
   /*
-  ==============================================
+  =========================================
   MOUSE
-  ==============================================
+  =========================================
   */
 
   const pointer = {
@@ -1801,6 +2127,7 @@
     strength: 0,
 
     targetStrength: 0
+
   };
 
 
@@ -1823,7 +2150,9 @@
 
       pointer.targetY =
 
-        1 -
+        1
+
+        -
 
         event.clientY /
 
@@ -1846,11 +2175,11 @@
           () => {
 
             pointer.targetStrength =
-              0.14;
+              0.12;
 
           },
 
-          180
+          170
 
         );
 
@@ -1880,20 +2209,21 @@
 
 
   /*
-  ==============================================
-  RESOLUÇÃO ADAPTATIVA
-  ==============================================
+  =========================================
+  RESOLUÇÃO
+  =========================================
   */
 
   function resize() {
 
-    const maxDpr =
+    const deviceDpr =
 
       Math.min(
 
-        window.devicePixelRatio || 1,
+        window.devicePixelRatio ||
+        1,
 
-        1.45
+        1.50
 
       );
 
@@ -1902,10 +2232,11 @@
 
       Math.max(
 
-        0.72,
+        0.68,
 
-        maxDpr *
-        ART.renderScale
+        deviceDpr *
+
+        QUALITY.renderScale
 
       );
 
@@ -1946,11 +2277,13 @@
 
     if (
 
-      canvas.width !== width
+      canvas.width !==
+      width
 
       ||
 
-      canvas.height !== height
+      canvas.height !==
+      height
 
     ) {
 
@@ -1973,16 +2306,267 @@
         height
 
       );
+
     }
   }
 
 
-  /*
-  ==============================================
-  BENCHMARK REAL
+  const massData =
 
-  Mede a própria arte.
-  ==============================================
+    new Float32Array(
+      DNA.masses
+    );
+
+
+  const massMeta =
+
+    new Float32Array(
+      DNA.massMeta
+    );
+
+
+  const cavityData =
+
+    new Float32Array(
+      DNA.cavities
+    );
+
+
+  const cavityMeta =
+
+    new Float32Array(
+      DNA.cavityMeta
+    );
+
+
+  /*
+  =========================================
+  ENVIA DNA PARA GPU
+  =========================================
+  */
+
+  function sendDNAUniforms() {
+
+    gl.uniform1f(
+      uniforms.u_seed,
+      profile.identity.seed
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_globalAngle,
+      DNA.globalAngle
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_shear,
+      DNA.shear
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_flowX,
+      DNA.flowX
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_flowY,
+      DNA.flowY
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_flowStrength,
+      DNA.flowStrength
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_flowDirection,
+      DNA.flowDirection
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_warpA,
+      DNA.warpA
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_warpB,
+      DNA.warpB
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_warpScaleA,
+      DNA.warpScaleA
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_warpScaleB,
+      DNA.warpScaleB
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_faultAngle,
+      DNA.faultAngle
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_faultOffset,
+      DNA.faultOffset
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_faultStrength,
+      DNA.faultStrength
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_foldFrequencyA,
+      DNA.foldFrequencyA
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_foldFrequencyB,
+      DNA.foldFrequencyB
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_foldStrengthA,
+      DNA.foldStrengthA
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_foldStrengthB,
+      DNA.foldStrengthB
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_asymmetry,
+      DNA.asymmetry
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_rightFadeStart,
+      DNA.rightFadeStart
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_verticalFade,
+      DNA.verticalFade
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_breathing,
+      DNA.breathing
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_linePhase,
+      DNA.linePhase
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_technicalPhase,
+      DNA.technicalPhase
+    );
+
+
+    gl.uniform4fv(
+      uniforms.u_massData,
+      massData
+    );
+
+
+    gl.uniform4fv(
+      uniforms.u_massMeta,
+      massMeta
+    );
+
+
+    gl.uniform4fv(
+      uniforms.u_cavityData,
+      cavityData
+    );
+
+
+    gl.uniform4fv(
+      uniforms.u_cavityMeta,
+      cavityMeta
+    );
+
+  }
+
+
+  /*
+  =========================================
+  QUALIDADE
+  =========================================
+  */
+
+  function sendQualityUniforms() {
+
+    gl.uniform1f(
+      uniforms.u_fineDensity,
+      QUALITY.fineLineDensity
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_secondaryDensity,
+      QUALITY.secondaryLineDensity
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_structuralDensity,
+      QUALITY.structuralDensity
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_microDetail,
+      QUALITY.microDetail
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_noiseWeight,
+      QUALITY.noiseWeight
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_arcOpacity,
+      QUALITY.arcOpacity
+    );
+
+  }
+
+
+  /*
+  =========================================
+  BENCHMARK
+  =========================================
   */
 
   let benchmarkDone =
@@ -1997,7 +2581,7 @@
     0;
 
 
-  function measureRuntimePerformance(
+  function measurePerformance(
     now
   ) {
 
@@ -2020,7 +2604,7 @@
 
     if (
       elapsed <
-      2300
+      2400
     ) {
       return;
     }
@@ -2028,10 +2612,11 @@
 
     const fps =
 
-      (
-        benchmarkFrames /
-        elapsed
-      )
+      benchmarkFrames
+
+      /
+
+      elapsed
 
       *
 
@@ -2045,7 +2630,7 @@
     profile =
 
       window.MPAdaptiveArt
-        .tuneProfileFromRuntime(
+        .tuneQualityFromRuntime(
 
           profile,
 
@@ -2054,214 +2639,43 @@
         );
 
 
-    ART =
-      profile.config;
+    QUALITY =
+      profile.quality;
 
 
     console.log(
 
-      "Performance real:",
-
-      `${fps.toFixed(1)} FPS`
+      `Performance real: ${fps.toFixed(1)} FPS`
 
     );
 
 
     console.log(
 
-      "Perfil ajustado:",
+      "Qualidade ajustada (DNA preservado):",
 
-      {
-
-        tier:
-          profile.tier,
-
-        powerScore:
-          profile.powerScore,
-
-        config:
-          ART
-
-      }
+      QUALITY
 
     );
 
 
-    if (
-      signature
-    ) {
+    if (signature) {
 
       signature.textContent =
 
-        `${profile.tier} · ${profile.powerScore} · ${fps.toFixed(0)}fps · seed ${profile.identity.hash
+        `DNA ${profile.identity.hash
           .toString(16)
-          .slice(0, 8)}`;
+          .slice(0, 8)} · ${fps.toFixed(0)}fps`;
 
     }
+
   }
 
 
   /*
-  ==============================================
-  ENVIA CONFIGURAÇÃO PARA GPU
-  ==============================================
-  */
-
-  function sendAdaptiveUniforms() {
-
-    gl.uniform1f(
-
-      uniforms.u_seed,
-
-      profile.identity.seed
-
-    );
-
-
-    gl.uniform1f(
-
-      uniforms.u_lineDensity,
-
-      ART.lineDensity
-
-    );
-
-
-    gl.uniform1f(
-
-      uniforms.u_structuralDensity,
-
-      ART.structuralDensity
-
-    );
-
-
-    gl.uniform1f(
-
-      uniforms.u_warpStrength,
-
-      ART.warpStrength
-
-    );
-
-
-    gl.uniform1f(
-
-      uniforms.u_detailStrength,
-
-      ART.detailStrength
-
-    );
-
-
-    gl.uniform1f(
-
-      uniforms.u_arcOpacity,
-
-      ART.arcOpacity
-
-    );
-
-
-    gl.uniform2f(
-
-      uniforms.u_massOffset,
-
-      ART.massOffsetX,
-
-      ART.massOffsetY
-
-    );
-
-
-    gl.uniform2f(
-
-      uniforms.u_massScale,
-
-      ART.massWidth,
-
-      ART.massHeight
-
-    );
-
-
-    gl.uniform1f(
-
-      uniforms.u_ridgeLean,
-
-      ART.ridgeLean
-
-    );
-
-
-    gl.uniform1f(
-
-      uniforms.u_flowBend,
-
-      ART.flowBend
-
-    );
-
-
-    gl.uniform1f(
-
-      uniforms.u_asymmetry,
-
-      ART.asymmetry
-
-    );
-
-
-    gl.uniform1f(
-
-      uniforms.u_openSpace,
-
-      ART.openSpace
-
-    );
-
-
-    gl.uniform1f(
-
-      uniforms.u_phaseA,
-
-      ART.phaseA
-
-    );
-
-
-    gl.uniform1f(
-
-      uniforms.u_phaseB,
-
-      ART.phaseB
-
-    );
-
-
-    gl.uniform1f(
-
-      uniforms.u_phaseC,
-
-      ART.phaseC
-
-    );
-
-
-    gl.uniform1f(
-
-      uniforms.u_flowDirection,
-
-      ART.flowDirection
-
-    );
-  }
-
-
-  /*
-  ==============================================
+  =========================================
   LOOP
-  ==============================================
+  =========================================
   */
 
   const startTime =
@@ -2279,7 +2693,7 @@
     resize();
 
 
-    measureRuntimePerformance(
+    measurePerformance(
       now
     );
 
@@ -2308,7 +2722,9 @@
 
     const smoothing =
 
-      1 -
+      1
+
+      -
 
       Math.pow(
 
@@ -2356,7 +2772,7 @@
 
       *
 
-      0.56;
+      0.55;
 
 
     const time =
@@ -2374,7 +2790,7 @@
 
       *
 
-      ART.speed;
+      DNA.animationSpeed;
 
 
     gl.useProgram(
@@ -2422,7 +2838,10 @@
     );
 
 
-    sendAdaptiveUniforms();
+    sendDNAUniforms();
+
+
+    sendQualityUniforms();
 
 
     gl.drawArrays(
@@ -2439,6 +2858,7 @@
     requestAnimationFrame(
       render
     );
+
   }
 
 
@@ -2448,17 +2868,12 @@
 
 
   /*
-  ==============================================
-  CANVAS 2D FALLBACK
-  ==============================================
+  =========================================
+  FALLBACK 2D
+  =========================================
   */
 
   function startCanvasFallback() {
-
-    console.warn(
-      "WebGL indisponível. Canvas 2D ativado."
-    );
-
 
     const replacement =
 
@@ -2494,9 +2909,7 @@
 
     if (!ctx) {
 
-      if (
-        fallback
-      ) {
+      if (fallback) {
 
         fallback.hidden =
           false;
@@ -2521,13 +2934,10 @@
 
         Math.min(
 
-          window.devicePixelRatio || 1,
+          window.devicePixelRatio ||
+          1,
 
-          profile.tier === "high"
-
-            ? 1.35
-
-            : 1.10
+          1.2
 
         );
 
@@ -2585,6 +2995,7 @@
         0
 
       );
+
     }
 
 
@@ -2600,7 +3011,7 @@
     );
 
 
-    const randomSeed =
+    const seed =
 
       profile.identity.seed
 
@@ -2616,19 +3027,6 @@
     function frame(
       ms
     ) {
-
-      const t =
-
-        ms
-
-        *
-
-        0.00012
-
-        *
-
-        ART.speed;
-
 
       ctx.fillStyle =
         "#f6f3ee";
@@ -2647,57 +3045,28 @@
       );
 
 
-      const centerX =
+      const t =
 
-        width
-
-        *
-
-        (
-          0.27
-
-          +
-
-          (
-            ART.massOffsetX +
-            0.39
-          )
-
-          *
-
-          0.13
-        );
-
-
-      const centerY =
-
-        height
+        ms
 
         *
 
-        (
-          0.50
+        0.00013
 
-          -
+        *
 
-          ART.massOffsetY *
-          0.10
-        );
+        DNA.animationSpeed;
 
 
-      const lineCount =
+      const count =
 
         Math.max(
 
-          28,
+          26,
 
           Math.round(
 
-            ART.lineDensity
-
-            *
-
-            1.15
+            QUALITY.fineLineDensity
 
           )
 
@@ -2708,7 +3077,7 @@
 
         let line = 0;
 
-        line < lineCount;
+        line < count;
 
         line++
 
@@ -2717,228 +3086,182 @@
         ctx.beginPath();
 
 
-        const points =
-          150;
+        const level =
+
+          line
+
+          /
+
+          Math.max(
+
+            1,
+
+            count - 1
+
+          );
 
 
         for (
 
-          let i = 0;
+          let x = -30;
 
-          i <= points;
+          x <=
+          width + 30;
 
-          i++
+          x += 5
 
         ) {
 
-          const angle =
-
-            (
-              i /
-              points
-            )
-
-            *
-
-            Math.PI
-
-            *
-
-            2;
-
-
-          const asymmetry =
-
-            1
-
-            +
-
-            Math.sin(
-
-              angle *
-              2
-
-              +
-
-              randomSeed
-
-            )
-
-            *
-
-            ART.asymmetry
-
-            *
-
-            0.22;
-
-
-          const wave =
-
-            Math.sin(
-
-              angle *
-              5
-
-              +
-
-              line *
-              0.15
-
-              +
-
-              randomSeed
-
-              +
-
-              t
-
-            )
-
-            *
-
-            (
-              4
-
-              +
-
-              ART.warpStrength *
-              55
-            );
-
-
-          const size =
-
-            28
-
-            +
-
-            line *
-            7.2;
-
-
-          const rx =
-
-            size
-
-            *
-
-            1.48
-
-            *
-
-            ART.massWidth
-
-            *
-
-            asymmetry
-
-            +
-
-            wave;
-
-
-          const ry =
-
-            size
-
-            *
-
-            0.72
-
-            *
-
-            ART.massHeight
-
-            +
-
-            wave *
-            0.38;
-
-
-          let x =
-
-            centerX
-
-            +
-
-            Math.cos(
-              angle
-            )
-
-            *
-
-            rx;
+          const nx =
+            x /
+            width;
 
 
           let y =
 
-            centerY
-
-            +
-
-            Math.sin(
-              angle
-            )
+            height
 
             *
-
-            ry;
-
-
-          x +=
 
             (
-              y -
-              centerY
+              0.48
+
+              +
+
+              DNA.anchorY *
+              0.12
+            );
+
+
+          y +=
+
+            (
+              level -
+              0.5
             )
 
             *
 
-            ART.ridgeLean
+            height
 
             *
 
-            0.25;
+            0.70;
 
 
-          x +=
+          y +=
 
             Math.sin(
 
-              (
-                y /
-                Math.max(
-                  1,
-                  height
-                )
-              )
+              nx *
+              DNA.flowX *
+              3
 
-              *
+              +
 
-              8
+              seed
 
               +
 
               t
 
+            )
+
+            *
+
+            30
+
+            *
+
+            DNA.flowStrength
+
+            *
+
+            5;
+
+
+          y +=
+
+            Math.sin(
+
+              nx *
+              DNA.foldFrequencyA *
+              2
+
               +
 
-              randomSeed
+              line *
+              0.09
+
+              +
+
+              seed
 
             )
 
             *
 
-            ART.flowBend
+            14;
+
+
+          const envelope =
+
+            Math.exp(
+
+              -Math.pow(
+
+                (
+
+                  nx
+
+                  -
+
+                  (
+                    0.31
+
+                    +
+
+                    DNA.anchorX *
+                    0.08
+                  )
+
+                )
+
+                /
+
+                0.34,
+
+                2
+
+              )
+
+            );
+
+
+          y -=
+
+            envelope
 
             *
 
-            18;
+            height
+
+            *
+
+            0.18
+
+            *
+
+            Math.sin(
+
+              level *
+              Math.PI
+
+            );
 
 
           if (
-            i === 0
+            x === -30
           ) {
 
             ctx.moveTo(
@@ -2956,6 +3279,7 @@
             );
 
           }
+
         }
 
 
@@ -2963,32 +3287,44 @@
 
           line % 9 === 0
 
-            ? "rgba(43,44,47,.15)"
+            ?
 
-            : "rgba(43,44,47,.075)";
+            "rgba(43,44,47,.15)"
+
+            :
+
+            "rgba(43,44,47,.075)";
 
 
         ctx.lineWidth =
 
           line % 9 === 0
 
-            ? 0.90
+            ?
 
-            : 0.55;
+            0.9
+
+            :
+
+            0.55;
 
 
         ctx.stroke();
+
       }
 
 
       requestAnimationFrame(
         frame
       );
+
     }
 
 
     requestAnimationFrame(
       frame
     );
+
   }
+
 })();
