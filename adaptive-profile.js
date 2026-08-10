@@ -1,18 +1,22 @@
 (() => {
   "use strict";
 
-  const VERSION = "mp-art-v7";
-  const CACHE_KEY = `${VERSION}-profile`;
-  const CACHE_TTL = 1000 * 60 * 60 * 24 * 7;
+  const VERSION = "mp-art-v8";
+  const PROFILE_KEY = `${VERSION}-profile`;
+  const TOKEN_KEY = `${VERSION}-device-token`;
+  const CACHE_TTL = 1000 * 60 * 60 * 24 * 30;
 
-  const clamp = (v, min, max) =>
-    Math.min(max, Math.max(min, v));
+  const clamp = (v, a, b) =>
+    Math.min(b, Math.max(a, v));
 
-  function hashString(str) {
+  const lerp = (a, b, t) =>
+    a + (b - a) * t;
+
+  function hashString(text) {
     let h = 2166136261;
 
-    for (let i = 0; i < str.length; i++) {
-      h ^= str.charCodeAt(i);
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
       h = Math.imul(h, 16777619);
     }
 
@@ -23,8 +27,8 @@
     let a = seed >>> 0;
 
     return () => {
-      a |= 0;
-      a = (a + 0x6D2B79F5) | 0;
+      a =
+        (a + 0x6D2B79F5) | 0;
 
       let t =
         Math.imul(
@@ -50,14 +54,91 @@
     };
   }
 
+  function between(
+    rng,
+    min,
+    max
+  ) {
+    return lerp(
+      min,
+      max,
+      rng()
+    );
+  }
+
+  function getOrCreateLocalToken() {
+    try {
+      const current =
+        localStorage.getItem(
+          TOKEN_KEY
+        );
+
+      if (current) {
+        return current;
+      }
+
+      const bytes =
+        new Uint32Array(4);
+
+      if (
+        window.crypto?.getRandomValues
+      ) {
+        window.crypto.getRandomValues(
+          bytes
+        );
+      } else {
+        for (
+          let i = 0;
+          i < bytes.length;
+          i++
+        ) {
+          bytes[i] =
+            Math.floor(
+              Math.random() *
+              0xffffffff
+            );
+        }
+      }
+
+      const token =
+        Array.from(bytes)
+          .map(
+            v =>
+              v
+                .toString(16)
+                .padStart(8, "0")
+          )
+          .join("");
+
+      localStorage.setItem(
+        TOKEN_KEY,
+        token
+      );
+
+      return token;
+    }
+
+    catch {
+      return (
+        `volatile-${Date.now()}-${Math.random()}`
+      );
+    }
+  }
+
   function getRendererInfo() {
     try {
       const canvas =
-        document.createElement("canvas");
+        document.createElement(
+          "canvas"
+        );
 
       const gl =
-        canvas.getContext("webgl") ||
-        canvas.getContext("experimental-webgl");
+        canvas.getContext(
+          "webgl"
+        ) ||
+        canvas.getContext(
+          "experimental-webgl"
+        );
 
       if (!gl) {
         return {
@@ -73,8 +154,11 @@
 
       if (!ext) {
         return {
-          vendor: "masked-vendor",
-          renderer: "masked-renderer"
+          vendor:
+            "masked-vendor",
+
+          renderer:
+            "masked-renderer"
         };
       }
 
@@ -92,10 +176,14 @@
           "unknown-renderer"
       };
     }
+
     catch {
       return {
-        vendor: "renderer-error",
-        renderer: "renderer-error"
+        vendor:
+          "renderer-error",
+
+        renderer:
+          "renderer-error"
       };
     }
   }
@@ -104,20 +192,37 @@
     const renderer =
       getRendererInfo();
 
-    const fingerprint = [
-      screen.width || 0,
-      screen.height || 0,
-      screen.colorDepth || 0,
-      window.devicePixelRatio || 1,
-      navigator.hardwareConcurrency || 4,
-      navigator.deviceMemory || 4,
+    const token =
+      getOrCreateLocalToken();
+
+    const signature = [
       renderer.vendor,
-      renderer.renderer
+      renderer.renderer,
+
+      navigator.hardwareConcurrency ||
+      0,
+
+      navigator.deviceMemory ||
+      0,
+
+      screen.width ||
+      0,
+
+      screen.height ||
+      0,
+
+      screen.colorDepth ||
+      0,
+
+      window.devicePixelRatio ||
+      1,
+
+      token
     ].join("|");
 
     const hash =
       hashString(
-        fingerprint
+        signature
       );
 
     return {
@@ -127,28 +232,35 @@
         hash /
         4294967295,
 
+      token,
+
       renderer
     };
   }
 
-  function estimatePower(identity) {
+  function estimatePower(
+    identity
+  ) {
     const cores =
-      navigator.hardwareConcurrency || 4;
+      navigator.hardwareConcurrency ||
+      4;
 
     const memory =
-      navigator.deviceMemory || 4;
+      navigator.deviceMemory ||
+      4;
 
     const dpr =
-      window.devicePixelRatio || 1;
+      window.devicePixelRatio ||
+      1;
 
     let score =
-      45;
+      42;
 
     score +=
       clamp(
         (cores - 4) * 4,
         -10,
-        24
+        26
       );
 
     score +=
@@ -160,9 +272,9 @@
 
     score -=
       clamp(
-        (dpr - 1) * 9,
+        (dpr - 1) * 7,
         0,
-        14
+        12
       );
 
     const renderer =
@@ -170,208 +282,487 @@
         .toLowerCase();
 
     if (
-      renderer.includes("nvidia") ||
-      renderer.includes("radeon") ||
-      renderer.includes("apple")
+      renderer.includes(
+        "nvidia"
+      ) ||
+
+      renderer.includes(
+        "radeon"
+      ) ||
+
+      renderer.includes(
+        "geforce"
+      )
     ) {
-      score +=
-        8;
+      score += 10;
     }
 
     if (
-      renderer.includes("intel") ||
-      renderer.includes("uhd") ||
-      renderer.includes("iris")
+      renderer.includes(
+        "apple"
+      ) ||
+
+      renderer.includes(
+        "adreno"
+      ) ||
+
+      renderer.includes(
+        "mali"
+      )
     ) {
-      score +=
-        2;
+      score += 5;
+    }
+
+    if (
+      renderer.includes(
+        "intel"
+      ) ||
+
+      renderer.includes(
+        "uhd"
+      ) ||
+
+      renderer.includes(
+        "iris"
+      )
+    ) {
+      score += 2;
     }
 
     return clamp(
       Math.round(score),
-      18,
-      92
+      15,
+      95
     );
   }
 
-  function tierFromScore(score) {
-    if (score >= 68) {
-      return "high";
-    }
-
-    if (score >= 42) {
-      return "medium";
-    }
-
-    return "low";
-  }
-
-  function buildConfig(
-    identity,
-    powerScore,
-    measuredFps = null
+  function qualityFromPower(
+    powerScore
   ) {
-    const tier =
-      tierFromScore(
-        powerScore
+    const t =
+      clamp(
+        (
+          powerScore -
+          15
+        ) /
+        80,
+        0,
+        1
       );
-
-    const random =
-      mulberry32(
-        identity.hash ^
-        0x9E3779B9
-      );
-
-    const base = {
-      low: {
-        renderScale: 0.86,
-        lineDensity: 30,
-        structuralDensity: 8,
-        warpStrength: 0.055,
-        detailStrength: 0.035,
-        arcOpacity: 0.045,
-        speed: 0.80
-      },
-
-      medium: {
-        renderScale: 1.00,
-        lineDensity: 39,
-        structuralDensity: 10,
-        warpStrength: 0.075,
-        detailStrength: 0.050,
-        arcOpacity: 0.060,
-        speed: 0.92
-      },
-
-      high: {
-        renderScale: 1.12,
-        lineDensity: 49,
-        structuralDensity: 12,
-        warpStrength: 0.098,
-        detailStrength: 0.066,
-        arcOpacity: 0.078,
-        speed: 1.04
-      }
-    }[tier];
 
     return {
-      tier,
       powerScore,
-      measuredFps,
 
       renderScale:
-        base.renderScale,
+        lerp(
+          0.76,
+          1.13,
+          t
+        ),
 
-      lineDensity:
-        base.lineDensity +
-        Math.floor(
-          (random() - 0.5) * 6
+      fineLineDensity:
+        Math.round(
+          lerp(
+            30,
+            56,
+            t
+          )
+        ),
+
+      secondaryLineDensity:
+        lerp(
+          20,
+          38,
+          t
         ),
 
       structuralDensity:
-        base.structuralDensity +
-        (random() - 0.5) *
-        1.5,
-
-      warpStrength:
-        base.warpStrength *
-        (
-          0.90 +
-          random() *
-          0.20
+        lerp(
+          7,
+          14,
+          t
         ),
 
-      detailStrength:
-        base.detailStrength *
-        (
-          0.90 +
-          random() *
-          0.22
+      noiseWeight:
+        lerp(
+          0.55,
+          1,
+          t
+        ),
+
+      microDetail:
+        lerp(
+          0.018,
+          0.055,
+          t
         ),
 
       arcOpacity:
-        Math.max(
-          0.02,
-          base.arcOpacity +
-          (random() - 0.5) *
-          0.015
-        ),
-
-      speed:
-        base.speed *
-        (
-          0.92 +
-          random() *
-          0.16
-        ),
-
-      massOffsetX:
-        -0.39 +
-        (random() - 0.5) *
-        0.12,
-
-      massOffsetY:
-        -0.015 +
-        (random() - 0.5) *
-        0.075,
-
-      massWidth:
-        0.93 +
-        (random() - 0.5) *
-        0.17,
-
-      massHeight:
-        1.12 +
-        (random() - 0.5) *
-        0.16,
-
-      ridgeLean:
-        -0.10 +
-        (random() - 0.5) *
-        0.30,
-
-      flowBend:
-        0.20 +
-        random() *
-        0.28,
-
-      asymmetry:
-        0.16 +
-        random() *
-        0.24,
-
-      openSpace:
-        0.67 +
-        (random() - 0.5) *
-        0.08,
-
-      phaseA:
-        random() *
-        Math.PI *
-        2,
-
-      phaseB:
-        random() *
-        Math.PI *
-        2,
-
-      phaseC:
-        random() *
-        Math.PI *
-        2,
-
-      flowDirection:
-        random() > 0.5
-          ? 1
-          : -1
+        lerp(
+          0.03,
+          0.07,
+          t
+        )
     };
   }
 
-  function loadCached() {
+  function buildGeometryDNA(
+    identity
+  ) {
+    const rng =
+      mulberry32(
+        identity.hash ^
+        0xA511E9B3
+      );
+
+    const anchorX =
+      between(
+        rng,
+        -0.50,
+        -0.20
+      );
+
+    const anchorY =
+      between(
+        rng,
+        -0.12,
+        0.10
+      );
+
+    const globalAngle =
+      between(
+        rng,
+        -0.80,
+        0.80
+      );
+
+    const horizontalBias =
+      between(
+        rng,
+        0.72,
+        1.45
+      );
+
+    const verticalBias =
+      between(
+        rng,
+        0.68,
+        1.35
+      );
+
+    const masses = [];
+    const massMeta = [];
+
+    for (
+      let i = 0;
+      i < 6;
+      i++
+    ) {
+      const progression =
+        i / 5;
+
+      masses.push(
+        anchorX +
+          between(
+            rng,
+            -0.42,
+            0.54
+          ) +
+          progression *
+          between(
+            rng,
+            -0.10,
+            0.24
+          ),
+
+        anchorY +
+          between(
+            rng,
+            -0.40,
+            0.40
+          ),
+
+        between(
+          rng,
+          0.16,
+          0.66
+        ) *
+        horizontalBias,
+
+        between(
+          rng,
+          0.10,
+          0.46
+        ) *
+        verticalBias
+      );
+
+      massMeta.push(
+        globalAngle +
+          between(
+            rng,
+            -1.05,
+            1.05
+          ),
+
+        between(
+          rng,
+          -0.72,
+          0.72
+        ),
+
+        i === 0
+          ?
+          between(
+            rng,
+            0.92,
+            1.28
+          )
+          :
+          between(
+            rng,
+            0.40,
+            1.18
+          ),
+
+        rng() *
+        Math.PI *
+        2
+      );
+    }
+
+    const cavities = [];
+    const cavityMeta = [];
+
+    for (
+      let i = 0;
+      i < 3;
+      i++
+    ) {
+      cavities.push(
+        anchorX +
+          between(
+            rng,
+            -0.24,
+            0.50
+          ),
+
+        anchorY +
+          between(
+            rng,
+            -0.34,
+            0.34
+          ),
+
+        between(
+          rng,
+          0.08,
+          0.34
+        ),
+
+        between(
+          rng,
+          0.06,
+          0.26
+        )
+      );
+
+      cavityMeta.push(
+        globalAngle +
+          between(
+            rng,
+            -1.25,
+            1.25
+          ),
+
+        between(
+          rng,
+          0.07,
+          0.50
+        ),
+
+        rng() *
+        Math.PI *
+        2,
+
+        0
+      );
+    }
+
+    return {
+      anchorX,
+      anchorY,
+
+      globalAngle,
+
+      shear:
+        between(
+          rng,
+          -0.42,
+          0.42
+        ),
+
+      flowX:
+        between(
+          rng,
+          1.0,
+          5.6
+        ),
+
+      flowY:
+        between(
+          rng,
+          0.8,
+          6.0
+        ),
+
+      flowStrength:
+        between(
+          rng,
+          0.025,
+          0.20
+        ),
+
+      flowDirection:
+        rng() > 0.5
+          ? 1
+          : -1,
+
+      warpA:
+        between(
+          rng,
+          0.018,
+          0.14
+        ),
+
+      warpB:
+        between(
+          rng,
+          0.012,
+          0.12
+        ),
+
+      warpScaleA:
+        between(
+          rng,
+          0.9,
+          3.1
+        ),
+
+      warpScaleB:
+        between(
+          rng,
+          2.0,
+          6.3
+        ),
+
+      faultAngle:
+        between(
+          rng,
+          -1.55,
+          1.55
+        ),
+
+      faultOffset:
+        between(
+          rng,
+          -0.22,
+          0.22
+        ),
+
+      faultStrength:
+        between(
+          rng,
+          0,
+          0.20
+        ),
+
+      foldFrequencyA:
+        between(
+          rng,
+          1.3,
+          6.0
+        ),
+
+      foldFrequencyB:
+        between(
+          rng,
+          2.0,
+          8.8
+        ),
+
+      foldStrengthA:
+        between(
+          rng,
+          0.012,
+          0.085
+        ),
+
+      foldStrengthB:
+        between(
+          rng,
+          0.005,
+          0.055
+        ),
+
+      asymmetry:
+        between(
+          rng,
+          0.10,
+          0.62
+        ),
+
+      rightFadeStart:
+        between(
+          rng,
+          -0.08,
+          0.34
+        ),
+
+      verticalFade:
+        between(
+          rng,
+          0.46,
+          0.74
+        ),
+
+      animationSpeed:
+        between(
+          rng,
+          0.58,
+          1.24
+        ),
+
+      breathing:
+        between(
+          rng,
+          0.006,
+          0.048
+        ),
+
+      linePhase:
+        rng() *
+        Math.PI *
+        2,
+
+      technicalPhase:
+        rng() *
+        Math.PI *
+        2,
+
+      masses,
+      massMeta,
+
+      cavities,
+      cavityMeta
+    };
+  }
+
+  function loadProfile() {
     try {
       const raw =
         localStorage.getItem(
-          CACHE_KEY
+          PROFILE_KEY
         );
 
       if (!raw) {
@@ -383,6 +774,10 @@
 
       if (
         !profile ||
+
+        profile.version !==
+        VERSION ||
+
         Date.now() -
           profile.savedAt >
           CACHE_TTL
@@ -392,26 +787,30 @@
 
       return profile;
     }
+
     catch {
       return null;
     }
   }
 
-  function save(profile) {
+  function saveProfile(
+    profile
+  ) {
     try {
       localStorage.setItem(
-        CACHE_KEY,
+        PROFILE_KEY,
         JSON.stringify(
           profile
         )
       );
     }
+
     catch {}
   }
 
   function createProfile() {
     const cached =
-      loadCached();
+      loadProfile();
 
     if (cached) {
       return cached;
@@ -434,36 +833,36 @@
 
       identity,
 
-      powerScore,
+      geometry:
+        buildGeometryDNA(
+          identity
+        ),
 
-      tier:
-        tierFromScore(
+      quality:
+        qualityFromPower(
           powerScore
         ),
 
-      config:
-        buildConfig(
-          identity,
-          powerScore
-        )
+      powerScore,
+
+      measuredFps:
+        null
     };
 
-    save(
+    saveProfile(
       profile
     );
 
     return profile;
   }
 
-  function tuneProfileFromRuntime(
+  function tuneQualityFromRuntime(
     profile,
-    measuredFps
+    fps
   ) {
     if (
       !profile ||
-      !Number.isFinite(
-        measuredFps
-      )
+      !Number.isFinite(fps)
     ) {
       return profile;
     }
@@ -471,23 +870,24 @@
     let score =
       profile.powerScore;
 
-    if (
-      measuredFps >= 57
-    ) {
-      score += 8;
+    if (fps >= 58) {
+      score += 7;
     }
+
     else if (
-      measuredFps >= 50
+      fps >= 50
     ) {
-      score += 4;
+      score += 3;
     }
+
     else if (
-      measuredFps < 32
+      fps < 30
     ) {
       score -= 18;
     }
+
     else if (
-      measuredFps < 44
+      fps < 42
     ) {
       score -= 9;
     }
@@ -497,8 +897,8 @@
         Math.round(
           score
         ),
-        18,
-        92
+        15,
+        95
       );
 
     const updated = {
@@ -510,28 +910,40 @@
       powerScore:
         score,
 
-      tier:
-        tierFromScore(
-          score
-        ),
+      measuredFps:
+        fps,
 
-      config:
-        buildConfig(
-          profile.identity,
-          score,
-          measuredFps
+      quality:
+        qualityFromPower(
+          score
         )
     };
 
-    save(
+    saveProfile(
       updated
     );
 
     return updated;
   }
 
+  function resetIdentity() {
+    try {
+      localStorage.removeItem(
+        PROFILE_KEY
+      );
+
+      localStorage.removeItem(
+        TOKEN_KEY
+      );
+    }
+
+    catch {}
+  }
+
   window.MPAdaptiveArt = {
     createProfile,
-    tuneProfileFromRuntime
+    tuneQualityFromRuntime,
+    resetIdentity
   };
+
 })();
