@@ -1,121 +1,41 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
   <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
-
-  <meta
-    name="theme-color"
-    content="#f6f3ee"
-  >
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f6f3ee">
 
   <title>Miguel Pita</title>
 
-  <!-- v=5 força o navegador a pegar o CSS novo -->
-  <link
-    rel="stylesheet"
-    href="./style.css?v=5"
-  >
+  <link rel="stylesheet" href="./style.css?v=7">
 </head>
 
 <body>
+  <main class="stage" id="stage">
 
-  <main
-    class="stage"
-    id="stage"
-  >
+    <canvas id="webgl" aria-hidden="true"></canvas>
 
-    <!--
-      Toda a arte é desenhada aqui.
-      Não existe mais SVG antigo.
-    -->
-    <canvas
-      id="webgl"
-      aria-hidden="true"
-    ></canvas>
+    <div class="soft-light" aria-hidden="true"></div>
+    <div class="grain" aria-hidden="true"></div>
 
+    <div class="device-signature" id="deviceSignature" aria-hidden="true"></div>
 
-    <!-- acabamento visual -->
-    <div
-      class="soft-light"
-      aria-hidden="true"
-    ></div>
-
-    <div
-      class="grain"
-      aria-hidden="true"
-    ></div>
-
-
-    <!-- MENU -->
-    <nav
-      class="shortcut-dock"
-      aria-label="Atalhos"
-    >
-
-      <a
-        class="shortcut"
-        href="/lab"
-      >
-        LAB
-      </a>
-
-      <a
-        class="shortcut"
-        href="/api"
-      >
-        API
-      </a>
-
-      <a
-        class="shortcut"
-        href="/work"
-      >
-        WORK
-      </a>
-
-      <a
-        class="shortcut"
-        href="/notes"
-      >
-        NOTES
-      </a>
-
-      <a
-        class="shortcut"
-        href="/contact"
-      >
-        CONTATO
-      </a>
-
+    <nav class="shortcut-dock" aria-label="Atalhos">
+      <a class="shortcut" href="/lab">LAB</a>
+      <a class="shortcut" href="/api">API</a>
+      <a class="shortcut" href="/work">WORK</a>
+      <a class="shortcut" href="/notes">NOTES</a>
+      <a class="shortcut" href="/contact">CONTATO</a>
     </nav>
 
-
-    <!--
-      Só aparece se realmente houver erro.
-      O CSS novo mantém isso escondido.
-    -->
-    <div
-      class="webgl-fallback"
-      id="fallback"
-      hidden
-    >
+    <div class="webgl-fallback" id="fallback" hidden>
       Não foi possível iniciar a arte gráfica.
     </div>
 
   </main>
 
-
-  <!--
-    v=5 também impede que o Chrome
-    carregue art.js antigo do cache.
-  -->
-  <script src="./art.js?v=6"></script>
-
+  <!-- O perfil do dispositivo precisa carregar antes da arte. -->
+  <script src="./adaptive-profile.js?v=7"></script>
+  <script src="./art.js?v=7"></script>
 </body>
 </html>
