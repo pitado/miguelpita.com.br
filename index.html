@@ -80,6 +80,161 @@
   @media (prefers-reduced-motion: reduce) {
     #art { transform: none !important; }
   }
+
+
+  /* ---------- Compact liquid glass shortcuts ---------- */
+  .shortcut-dock {
+    position: absolute;
+    right: clamp(18px, 2.4vw, 38px);
+    bottom: clamp(18px, 3vh, 30px);
+    z-index: 10;
+
+    display: flex;
+    align-items: center;
+    gap: 4px;
+
+    padding: 4px;
+    border-radius: 16px;
+
+    background:
+      linear-gradient(135deg,
+        rgba(255,255,255,.34),
+        rgba(255,255,255,.12));
+
+    border: 1px solid rgba(255,255,255,.60);
+
+    box-shadow:
+      0 10px 28px rgba(35,35,39,.065),
+      inset 0 1px 0 rgba(255,255,255,.76),
+      inset 0 -1px 0 rgba(100,100,104,.05);
+
+    -webkit-backdrop-filter: blur(16px) saturate(118%);
+    backdrop-filter: blur(16px) saturate(118%);
+  }
+
+  .shortcut-dock::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    top: 1px;
+    height: 38%;
+    border-radius: 14px 14px 50% 50%;
+    pointer-events: none;
+    background:
+      linear-gradient(180deg,
+        rgba(255,255,255,.28),
+        rgba(255,255,255,0));
+  }
+
+  .shortcut {
+    position: relative;
+    isolation: isolate;
+
+    height: 30px;
+    min-width: 0;
+    padding: 0 10px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 11px;
+    border: 1px solid transparent;
+
+    color: rgba(28,28,31,.72);
+    text-decoration: none;
+
+    font-size: 8.5px;
+    font-weight: 600;
+    letter-spacing: .12em;
+
+    background: rgba(255,255,255,.05);
+
+    overflow: hidden;
+
+    transition:
+      transform .28s cubic-bezier(.2,.8,.2,1),
+      background .28s ease,
+      border-color .28s ease,
+      color .28s ease,
+      box-shadow .28s ease;
+  }
+
+  .shortcut::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    width: 34px;
+    height: 34px;
+    left: -22px;
+    top: -20px;
+    border-radius: 50%;
+
+    background: rgba(255,255,255,.55);
+    filter: blur(10px);
+    opacity: .45;
+
+    transition:
+      transform .45s cubic-bezier(.2,.8,.2,1),
+      opacity .28s ease;
+  }
+
+  .shortcut:hover {
+    transform: translateY(-2px);
+    color: rgba(18,18,20,.94);
+
+    border-color: rgba(255,255,255,.62);
+
+    background:
+      linear-gradient(
+        135deg,
+        rgba(255,255,255,.42),
+        rgba(255,255,255,.14)
+      );
+
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.82),
+      0 6px 16px rgba(35,35,38,.05);
+  }
+
+  .shortcut:hover::before {
+    transform: translate(32px, 18px) scale(1.05);
+    opacity: .75;
+  }
+
+  .shortcut:active {
+    transform: translateY(0) scale(.97);
+  }
+
+  @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .shortcut-dock,
+    .shortcut {
+      background: rgba(250,248,244,.9);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .shortcut-dock {
+      left: 50%;
+      right: auto;
+      bottom: 14px;
+      transform: translateX(-50%);
+      gap: 2px;
+      padding: 3px;
+      border-radius: 14px;
+      max-width: calc(100vw - 18px);
+    }
+
+    .shortcut {
+      height: 29px;
+      padding: 0 8px;
+      font-size: 8px;
+      letter-spacing: .09em;
+      border-radius: 10px;
+    }
+  }
+
 </style>
 </head>
 <body>
@@ -2628,6 +2783,15 @@
 
   <div class="fade-right"></div>
   <div class="grain"></div>
+
+  <nav class="shortcut-dock" aria-label="Atalhos">
+    <a class="shortcut" href="/lab">LAB</a>
+    <a class="shortcut" href="/api">API</a>
+    <a class="shortcut" href="/work">WORK</a>
+    <a class="shortcut" href="/notes">NOTES</a>
+    <a class="shortcut" href="/contact">CONTATO</a>
+  </nav>
+
 </div>
 
 <script>
