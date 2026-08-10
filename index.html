@@ -1,39 +1,284 @@
-<!doctype html>
-<html lang="pt-br">
+<!DOCTYPE html>
+<html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Miguel Pita</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    html, body {
-      height: 100%;
-      background: #ffffff;
-      overflow: hidden;
-    }
-
-    body {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: "Arial Black", "Helvetica Neue", Helvetica, Arial, sans-serif;
-      -webkit-user-select: none;
-      user-select: none;
-    }
-
-    h1 {
-      color: #000000;
-      text-transform: uppercase;
-      font-weight: 900;
-      line-height: 0.82;
-      letter-spacing: -0.03em;
-      text-align: center;
-      font-size: clamp(4rem, 24vw, 22rem);
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Miguel Pita</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden;background:#03100b}
+  body{cursor:crosshair;font-family:"Space Grotesk",system-ui,sans-serif}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+  .vignette{position:fixed;inset:0;pointer-events:none;
+    background:radial-gradient(120% 120% at 50% 50%, transparent 40%, rgba(1,6,4,.85) 100%)}
+  .meter{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);
+    width:64px;height:1px;background:rgba(140,220,180,.13);pointer-events:none}
+  .meter i{display:block;height:100%;width:0;background:rgba(170,255,205,.55)}
+  .hint{position:fixed;left:50%;bottom:48px;transform:translateX(-50%);
+    color:rgba(150,225,190,.36);font-size:10px;letter-spacing:.34em;text-transform:uppercase;
+    pointer-events:none;transition:opacity 1.4s ease}
+  .hint.gone{opacity:0}
+</style>
 </head>
 <body>
-  <h1>Miguel<br>Pita</h1>
+<canvas id="c"></canvas>
+<div class="vignette"></div>
+<div class="hint" id="hint">clique para ondular</div>
+<div class="meter"><i id="meter"></i></div>
+
+<script>
+(() => {
+  const cv = document.getElementById('c');
+  const ctx = cv.getContext('2d');
+  const meter = document.getElementById('meter');
+  const hint = document.getElementById('hint');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const NAME = 'Miguel Pita';
+  const MAXP = 3400;
+  let W=0,H=0,DPR=1,ps=[],forms=[],form=0,morphAt=0,ready=false,links=[],waves=[];
+  const M={x:-1e4,y:-1e4,active:false};
+  const rand=(a,b)=>a+Math.random()*(b-a);
+  const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+
+  const hsh=(x,y)=>{const n=Math.sin(x*127.1+y*311.7)*43758.5453;return n-Math.floor(n);};
+  function noise(x,y){
+    const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;
+    const u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);
+    const a=hsh(xi,yi),b=hsh(xi+1,yi),c=hsh(xi,yi+1),d=hsh(xi+1,yi+1);
+    return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;
+  }
+
+  const glow=document.createElement('canvas'); glow.width=glow.height=48;
+  {
+    const g=glow.getContext('2d'), rg=g.createRadialGradient(24,24,0,24,24,24);
+    rg.addColorStop(0,'rgba(210,255,235,.9)');
+    rg.addColorStop(.35,'rgba(90,235,170,.26)');
+    rg.addColorStop(1,'rgba(60,210,150,0)');
+    g.fillStyle=rg; g.fillRect(0,0,48,48);
+  }
+
+  /* ---------------- formas ---------------- */
+  function textPoints(txt){
+    const off=document.createElement('canvas'), o=off.getContext('2d',{willReadFrequently:true});
+    off.width=W; off.height=H;
+    let size=Math.min(W*0.132,H*0.30);
+    o.textAlign='center'; o.textBaseline='middle';
+    if('letterSpacing' in o) o.letterSpacing='0.02em';
+    const f=s=>o.font=`700 ${s}px "Space Grotesk", Helvetica, Arial, sans-serif`;
+    f(size);
+    while(o.measureText(txt).width>W*0.82&&size>12){size-=2;f(size);}
+    o.fillStyle='#fff'; o.fillText(txt,W/2,H/2);
+    const d=o.getImageData(0,0,W,H).data; let pts=[];
+    for(let y=0;y<H;y+=3) for(let x=0;x<W;x+=3)
+      if(d[(y*W+x)*4+3]>110) pts.push([x+rand(-.7,.7),y+rand(-.7,.7)]);
+    if(pts.length>MAXP){                       // afina mantendo distribuição
+      const keep=MAXP/pts.length;
+      pts=pts.filter(()=>Math.random()<keep);
+    }
+    return pts;
+  }
+  const ring=(n,r)=>Array.from({length:n},(_,i)=>{const a=i/n*Math.PI*2,j=rand(-5,5);
+    return [W/2+Math.cos(a)*(r+j),H/2+Math.sin(a)*(r*.92+j)];});
+  const wave=n=>Array.from({length:n},(_,i)=>{const t=i/n,x=W*.1+t*W*.8;
+    return [x,H/2+Math.sin(t*Math.PI*3)*H*.14+Math.sin(t*Math.PI*9)*H*.025];});
+  const orbit=(n,r)=>Array.from({length:n},(_,i)=>{const b=i%3,a=(i/n)*Math.PI*6,rr=r*(.4+b*.3);
+    return [W/2+Math.cos(a)*rr,H/2+Math.sin(a)*rr*.9];});
+  const sorted=p=>p.map(q=>[q,Math.atan2(q[1]-H/2,q[0]-W/2)]).sort((a,b)=>a[1]-b[1]).map(q=>q[0]);
+
+  function setup(){
+    const r=cv.getBoundingClientRect();
+    W=Math.max(2,Math.floor(r.width||innerWidth)); H=Math.max(2,Math.floor(r.height||innerHeight));
+    if(W<3||H<3) return requestAnimationFrame(setup);
+    DPR=Math.min(devicePixelRatio||1,2);
+    cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0);
+    ctx.fillStyle='#03100b'; ctx.fillRect(0,0,W,H);
+
+    const name=sorted(textPoints(NAME));
+    const R=Math.min(W,H)*0.33, N=Math.max(name.length,1000);
+    forms=[
+      {p:name,name:true,hold:7600},
+      {p:sorted(ring(N,R)),name:false,hold:4200},
+      {p:name,name:true,hold:7600},
+      {p:sorted(wave(N)),name:false,hold:4200},
+      {p:name,name:true,hold:7600},
+      {p:sorted(orbit(N,R)),name:false,hold:4200}
+    ];
+
+    ps=Array.from({length:N},(_,i)=>{
+      const a=rand(0,Math.PI*2),d=rand(.7,1.5)*Math.max(W,H);
+      const free=Math.random()<.07;
+      return {x:W/2+Math.cos(a)*d,y:H/2+Math.sin(a)*d,px:0,py:0,vx:0,vy:0,
+        size:Math.random()<.06?rand(1.8,2.8):rand(.8,1.6),
+        base:rand(.5,1),lag:rand(0,.5),free,
+        orbR:free?0:rand(2,13),orbS:rand(.4,1.6)*(Math.random()<.5?-1:1),
+        ph:rand(0,Math.PI*2),tw:rand(.6,2.4),spark:0,link:i%13===0};
+    });
+    links=ps.filter(p=>p.link);
+    waves=[]; morphAt=performance.now(); ready=true;
+  }
+  const targetOf=i=>forms[form].p[i%forms[form].p.length];
+
+  function next(now,manual){
+    if(!manual) form=(form+1)%forms.length;
+    morphAt=now;
+    waves.push({t0:now,amp:manual?26:18,x:manual?M.x:W/2,y:manual?M.y:H/2});
+    if(!manual) for(const p of ps){
+      const a=Math.atan2(p.y-H/2,p.x-W/2)+rand(-.8,.8),k=rand(.5,2.4);
+      p.vx+=Math.cos(a)*k; p.vy+=Math.sin(a)*k;
+    }
+  }
+
+  /* ---------------- loop ---------------- */
+  let lastSpark=0;
+  function frame(now){
+    requestAnimationFrame(frame);
+    if(!ready) return;
+    const cur=forms[form], since=now-morphAt;
+    if(since>cur.hold) next(now,false);
+    meter.style.width=Math.min(since/cur.hold,1)*64+'px';
+
+    // ciclo de foco: entra, fica nítido, depois derrete de novo
+    const s=since/1000;
+    let focus;
+    if(!cur.name) focus=0.15;
+    else if(s<1.1) focus=s/1.1;
+    else if(s<4.4) focus=1;
+    else focus=clamp(1-(s-4.4)/2.4,.18,1);
+    if(reduced) focus=1;
+
+    if(now-lastSpark>rand(260,640)){
+      lastSpark=now;
+      const p=ps[(Math.random()*ps.length)|0],a=rand(0,Math.PI*2);
+      p.vx+=Math.cos(a)*rand(6,13); p.vy+=Math.sin(a)*rand(6,13); p.spark=1;
+    }
+    if(waves.length && now-waves[0].t0>2600) waves.shift();
+    if(Math.random()<0.0022) waves.push({t0:now,amp:14,x:W/2,y:H/2});
+
+    ctx.fillStyle='rgba(3,16,11,.13)'; ctx.fillRect(0,0,W,H);
+
+    const breathe=1+Math.sin(now*.00035)*.03;
+    const rot=Math.sin(now*.00013)*.05, cr=Math.cos(rot), sr=Math.sin(rot);
+    const warp=(1-focus)*1.0;                 // distorção só quando o nome está solto
+
+    ctx.globalCompositeOperation='lighter';
+
+    for(let i=0;i<ps.length;i++){
+      const p=ps[i],t=targetOf(i);
+      p.px=p.x; p.py=p.y;
+
+      let tx=(t[0]-W/2)*breathe, ty=(t[1]-H/2)*breathe;
+      const rx=tx*cr-ty*sr, ry=tx*sr+ty*cr;
+      tx=W/2+rx; ty=H/2+ry;
+
+      if(!reduced){
+        const o=p.orbR*(1-.82*focus);          // no foco, cada ponto quase para no lugar
+        tx+=Math.cos(now*.0009*p.orbS+p.ph)*o;
+        ty+=Math.sin(now*.0011*p.orbS+p.ph)*o;
+      }
+
+      const e=Math.max(0,Math.min((since/1000)-p.lag,1));
+      const pull=p.free?0.0009:(0.003+e*e*0.013)*(1+focus*1.7);
+      p.vx+=(tx-p.x)*pull; p.vy+=(ty-p.y)*pull;
+
+      const n=noise(p.x*.0026,p.y*.0026+now*.00004);
+      const wa=n*Math.PI*4, wind=(p.free?.10:.05)*(1.25-focus*.75);
+      p.vx+=Math.cos(wa)*wind; p.vy+=Math.sin(wa)*wind;
+
+      if(M.active){
+        const dx=p.x-M.x,dy=p.y-M.y,d2=dx*dx+dy*dy;
+        if(d2<26000&&d2>1){
+          const d=Math.sqrt(d2),f=(1-d/161)*1700/d2;
+          p.vx+=dx*f-dy*f*.42; p.vy+=dy*f+dx*f*.42;
+        }
+      }
+
+      p.vx*=.922; p.vy*=.922; p.x+=p.vx; p.y+=p.vy;
+      if(p.x<-70||p.x>W+70||p.y<-70||p.y>H+70){p.x=tx;p.y=ty;p.vx=p.vy=0;}
+
+      /* --- deformação psicodélica, só no desenho --- */
+      let dx=p.x-W/2, dy=p.y-H/2;
+      let dist=Math.hypot(dx,dy), ang=Math.atan2(dy,dx);
+      let rr=dist, aa=ang;
+      if(!reduced && warp>.01){
+        rr+=Math.sin(dist*.021-now*.0018+p.ph*.2)*9*warp;
+        aa+=Math.sin(dist*.013-now*.0011)*.055*warp;
+      }
+      for(const w of waves){                  // ondas de choque radiais
+        const age=(now-w.t0)/1000;
+        const front=age*420, wd=dist-front;
+        if(Math.abs(wd)<150){
+          const k=Math.exp(-(wd*wd)/5200)*Math.max(0,1-age/2.4);
+          rr+=Math.sin(wd*.06)*w.amp*k;
+        }
+      }
+      const X=W/2+Math.cos(aa)*rr, Y=H/2+Math.sin(aa)*rr;
+
+      /* --- cor: bandas concêntricas que giram --- */
+      const sp=Math.min(Math.hypot(p.vx,p.vy)/6,1);
+      const hue=150+42*Math.sin(dist*.011-now*.00085+p.ph*.15)+sp*14;
+      const twk=reduced?1:.74+.26*Math.sin(now*.0016*p.tw+p.ph);
+      const lit=(22+p.base*22+sp*46)*(1+focus*.28);
+      const alpha=(.3+p.base*.34+sp*.24)*twk*(p.free?.5:1)*(cur.name?(.55+focus*.65):1);
+      const sz=p.size*(1+focus*.25);
+
+      // aberração cromática: some quando o nome entra em foco
+      const off=(1-focus)*3.2;
+      if(off>.4){
+        ctx.fillStyle=`hsla(${hue+46},80%,${lit}%,${alpha*.42})`;
+        ctx.fillRect(X+off,Y,sz,sz);
+        ctx.fillStyle=`hsla(${hue-52},85%,${lit}%,${alpha*.42})`;
+        ctx.fillRect(X-off,Y,sz,sz);
+      }
+      ctx.fillStyle=`hsla(${hue},${40+sp*30}%,${lit}%,${alpha})`;
+      ctx.fillRect(X,Y,sz,sz);
+
+      if(p.spark>.02){
+        ctx.strokeStyle=`hsla(${hue+20},70%,${66+p.spark*22}%,${p.spark*.5})`;
+        ctx.lineWidth=p.size*.9;
+        ctx.beginPath(); ctx.moveTo(p.px,p.py); ctx.lineTo(X,Y); ctx.stroke();
+        p.spark*=.93;
+      }
+      if(p.size>1.75||sp>.5){
+        const g=12+sp*22;
+        ctx.globalAlpha=.26+sp*.34;
+        ctx.drawImage(glow,X-g/2,Y-g/2,g,g);
+        ctx.globalAlpha=1;
+      }
+      p.dx=X; p.dy=Y;
+    }
+
+    ctx.lineWidth=.5;
+    for(let i=0;i<links.length;i++){
+      const a=links[i];
+      for(let j=i+1;j<Math.min(i+6,links.length);j++){
+        const b=links[j],dx=a.dx-b.dx,dy=a.dy-b.dy,d=Math.hypot(dx,dy);
+        if(d<96){
+          ctx.strokeStyle=`hsla(${160+40*Math.sin(now*.0006+i)},70%,64%,${(1-d/96)*.11})`;
+          ctx.beginPath(); ctx.moveTo(a.dx,a.dy); ctx.lineTo(b.dx,b.dy); ctx.stroke();
+        }
+      }
+    }
+    ctx.globalCompositeOperation='source-over';
+  }
+
+  addEventListener('pointermove',e=>{M.x=e.clientX;M.y=e.clientY;M.active=true;},{passive:true});
+  addEventListener('pointerleave',()=>M.active=false);
+  addEventListener('pointerdown',e=>{M.x=e.clientX;M.y=e.clientY;next(performance.now(),true);hint.classList.add('gone');});
+  addEventListener('dblclick',()=>next(performance.now(),false));
+  setTimeout(()=>hint.classList.add('gone'),8000);
+
+  let rt;
+  const re=()=>{clearTimeout(rt);rt=setTimeout(()=>{ready=false;setup();},160);};
+  addEventListener('resize',re);
+  if(window.ResizeObserver) new ResizeObserver(re).observe(document.documentElement);
+
+  setup();
+  requestAnimationFrame(frame);
+})();
+</script>
 </body>
 </html>
