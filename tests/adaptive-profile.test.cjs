@@ -16,6 +16,7 @@ function createEnvironment({
   dpr = 1,
   width = 1440,
   height = 900,
+  gpu = null,
   storage = new Map()
 } = {}) {
   const window = {
@@ -57,6 +58,53 @@ function createEnvironment({
     }
   };
 
+  const webgl = gpu
+    ? {
+        MAX_TEXTURE_SIZE: "maxTextureSize",
+        MAX_RENDERBUFFER_SIZE: "maxRenderbufferSize",
+        MAX_FRAGMENT_UNIFORM_VECTORS: "maxFragmentUniformVectors",
+        MAX_VARYING_VECTORS: "maxVaryingVectors",
+        MAX_VERTEX_ATTRIBS: "maxVertexAttribs",
+        MAX_VERTEX_TEXTURE_IMAGE_UNITS: "maxVertexTextureImageUnits",
+        FRAGMENT_SHADER: "fragmentShader",
+        HIGH_FLOAT: "highFloat",
+        getExtension(name) {
+          if (name === "WEBGL_debug_renderer_info") {
+            return {
+              UNMASKED_VENDOR_WEBGL: "unmaskedVendor",
+              UNMASKED_RENDERER_WEBGL: "unmaskedRenderer"
+            };
+          }
+
+          if (name === "WEBGL_lose_context") {
+            return { loseContext() {} };
+          }
+
+          return null;
+        },
+        getParameter(name) {
+          const values = {
+            unmaskedVendor: gpu.vendor,
+            unmaskedRenderer: gpu.renderer,
+            maxTextureSize: gpu.maxTextureSize || 16384,
+            maxRenderbufferSize: gpu.maxRenderbufferSize || 16384,
+            maxFragmentUniformVectors: gpu.maxFragmentUniformVectors || 1024,
+            maxVaryingVectors: gpu.maxVaryingVectors || 32,
+            maxVertexAttribs: gpu.maxVertexAttribs || 16,
+            maxVertexTextureImageUnits: gpu.maxVertexTextureImageUnits || 32
+          };
+
+          return values[name] || 0;
+        },
+        getShaderPrecisionFormat() {
+          return { precision: gpu.precision || 23 };
+        },
+        getSupportedExtensions() {
+          return gpu.extensions || ["EXT_color_buffer_half_float"];
+        }
+      }
+    : null;
+
   const context = {
     Array,
     Date,
@@ -71,7 +119,7 @@ function createEnvironment({
       createElement() {
         return {
           getContext() {
-            return null;
+            return webgl;
           }
         };
       }
@@ -133,6 +181,53 @@ test("independent seeds distribute across every composition family", () => {
   for (const count of counts.values()) {
     assert.ok(count >= 45 && count <= 85, `unbalanced count: ${count}`);
   }
+});
+
+test("GPU hashes distribute across radically different render species", () => {
+  const environment = createEnvironment();
+  const species = new Set();
+
+  for (let seed = 1; seed <= 512; seed++) {
+    environment.window.location.search =
+      `?artSeed=13572468&gpuSeed=${seed.toString(16)}`;
+    species.add(environment.api.createProfile().geometry.species);
+  }
+
+  assert.deepEqual(
+    [...species].sort(),
+    ["cellular", "crystal", "filament", "orbital", "topographic", "void"]
+  );
+});
+
+test("changing the GPU changes the artwork species and GPU DNA", () => {
+  const storage = new Map([
+    ["mp-art-device-token", "11111111222222223333333344444444"]
+  ]);
+  const nvidia = createEnvironment({
+    storage,
+    gpu: {
+      vendor: "NVIDIA Corporation",
+      renderer: "NVIDIA GeForce RTX 4080",
+      maxTextureSize: 32768,
+      extensions: ["EXT_float_blend", "WEBGL_compressed_texture_s3tc"]
+    }
+  }).api.createProfile();
+  const intel = createEnvironment({
+    storage,
+    gpu: {
+      vendor: "Intel Inc.",
+      renderer: "Intel Iris Xe Graphics",
+      maxTextureSize: 16384,
+      extensions: ["EXT_color_buffer_half_float"]
+    }
+  }).api.createProfile();
+
+  assert.notEqual(nvidia.identity.gpuHash, intel.identity.gpuHash);
+  assert.notEqual(nvidia.identity.hash, intel.identity.hash);
+  assert.notEqual(
+    `${nvidia.geometry.family}:${nvidia.geometry.species}`,
+    `${intel.geometry.family}:${intel.geometry.species}`
+  );
 });
 
 test("families have different structural signatures", () => {

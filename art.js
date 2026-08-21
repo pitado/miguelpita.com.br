@@ -26,7 +26,7 @@
 
   if (!window.MPAdaptiveArt) {
     console.error(
-      "adaptive-profile.js V9 não carregou."
+      "adaptive-profile.js V10 não carregou."
     );
 
     return;
@@ -69,7 +69,7 @@
     ).get("artFallback") === "1";
 
   console.log(
-    "%c MIGUEL PITA · GPU DNA V9 ",
+    "%c MIGUEL PITA · GPU DNA V10 ",
     "background:#111;color:#fff;padding:5px 9px;border-radius:5px;font-weight:bold"
   );
 
@@ -94,7 +94,13 @@
         DNA,
 
       family:
-        DNA.family
+        DNA.family,
+
+      gpuSpecies:
+        DNA.species,
+
+      gpuHash:
+        profile.identity.gpuHash
     }
   );
 
@@ -105,7 +111,7 @@
 
   if (signature) {
     signature.textContent =
-      `DNA ${profile.identity.hash
+      `GPU ${DNA.species} · ${profile.identity.gpuHash
         .toString(16)
         .padStart(8, "0")
         .slice(0, 8)} · ${DNA.family}`;
@@ -208,6 +214,14 @@
     uniform float u_mouseStrength;
 
     uniform vec2 u_seed;
+
+    uniform float u_renderMode;
+
+    uniform vec3 u_backgroundColor;
+
+    uniform vec3 u_lineColor;
+
+    uniform vec3 u_accentColor;
 
 
     uniform float u_fineDensity;
@@ -1489,13 +1503,195 @@
       =========================================
       */
 
+      vec2 modeP =
+        warped -
+        u_massData[0].xy;
+
+
+      float mode =
+        floor(
+          u_renderMode +
+          0.5
+        );
+
+
+      float lineField =
+        field;
+
+
+      float densityScale =
+        1.0;
+
+
+      float technicalScale =
+        1.0;
+
+
+      if (
+        mode > 0.5 &&
+        mode < 1.5
+      ) {
+
+        vec2 crystalP =
+          rotate2D(
+            modeP,
+            0.785398 +
+            u_globalAngle *
+            0.35
+          );
+
+
+        lineField =
+          combined *
+          0.34 +
+          abs(crystalP.x) *
+          1.55 +
+          abs(crystalP.y) *
+          0.82 +
+          floor(
+            abs(crystalP.x + crystalP.y) *
+            7.0
+          ) *
+          0.045;
+
+
+        densityScale =
+          0.72;
+
+
+        technicalScale =
+          0.28;
+
+      }
+      else if (
+        mode > 1.5 &&
+        mode < 2.5
+      ) {
+
+        float polarAngle =
+          atan(
+            modeP.y,
+            modeP.x
+          );
+
+
+        lineField =
+          length(modeP) *
+          2.35 +
+          combined *
+          0.15 +
+          sin(
+            polarAngle *
+            (3.0 + floor(u_seed.x * 5.0)) +
+            u_time *
+            0.035
+          ) *
+          0.075;
+
+
+        densityScale =
+          0.58;
+
+
+        technicalScale =
+          2.15;
+
+      }
+      else if (
+        mode > 2.5 &&
+        mode < 3.5
+      ) {
+
+        lineField =
+          modeP.y *
+          2.8 +
+          sin(
+            modeP.x *
+            (9.0 + u_flowX) +
+            n1 *
+            3.2 +
+            u_time *
+            0.08
+          ) *
+          0.19 +
+          combined *
+          0.09;
+
+
+        densityScale =
+          0.48;
+
+
+        technicalScale =
+          0.18;
+
+      }
+      else if (
+        mode > 3.5 &&
+        mode < 4.5
+      ) {
+
+        vec2 cell =
+          abs(
+            fract(
+              modeP *
+              (5.0 + floor(u_seed.y * 4.0)) +
+              u_seed *
+              3.0
+            ) -
+            0.5
+          );
+
+
+        lineField =
+          max(cell.x, cell.y) +
+          combined *
+          0.055 +
+          n2 *
+          0.035;
+
+
+        densityScale =
+          1.85;
+
+
+        technicalScale =
+          0.10;
+
+      }
+      else if (
+        mode > 4.5
+      ) {
+
+        lineField =
+          combined *
+          0.32 +
+          abs(
+            cavityForce -
+            0.28
+          ) *
+          1.75 +
+          n1 *
+          0.12;
+
+
+        densityScale =
+          0.36;
+
+
+        technicalScale =
+          0.62;
+
+      }
+
       float fineA =
 
         contour(
 
-          field,
+          lineField,
 
-          u_fineDensity,
+          u_fineDensity *
+          densityScale,
 
           0.050
 
@@ -1506,7 +1702,7 @@
 
         contour(
 
-          field
+          lineField
 
           +
 
@@ -1524,7 +1720,7 @@
 
         contour(
 
-          field
+          lineField
 
           +
 
@@ -1567,7 +1763,7 @@
 
         contour(
 
-          field
+          lineField
 
           +
 
@@ -1717,7 +1913,8 @@
 
           p.x
 
-        );
+        ) *
+        technicalScale;
 
 
       /*
@@ -1728,15 +1925,7 @@
 
       vec3 background =
 
-        vec3(
-
-          0.965,
-
-          0.954,
-
-          0.936
-
-        );
+        u_backgroundColor;
 
 
       background +=
@@ -1784,9 +1973,7 @@
 
           color,
 
-          vec3(
-            0.51
-          ),
+          u_lineColor,
 
           clamp(
 
@@ -1808,9 +1995,7 @@
 
           color,
 
-          vec3(
-            0.28
-          ),
+          u_accentColor,
 
           clamp(
 
@@ -1832,8 +2017,10 @@
 
           color,
 
-          vec3(
-            0.48
+          mix(
+            u_lineColor,
+            u_accentColor,
+            0.45
           ),
 
           clamp(
@@ -2098,6 +2285,14 @@
     "u_mouseStrength",
 
     "u_seed",
+
+    "u_renderMode",
+
+    "u_backgroundColor",
+
+    "u_lineColor",
+
+    "u_accentColor",
 
     "u_fineDensity",
 
@@ -2602,6 +2797,30 @@
 
 
     gl.uniform1f(
+      uniforms.u_renderMode,
+      DNA.renderMode
+    );
+
+
+    gl.uniform3fv(
+      uniforms.u_backgroundColor,
+      DNA.backgroundColor
+    );
+
+
+    gl.uniform3fv(
+      uniforms.u_lineColor,
+      DNA.lineColor
+    );
+
+
+    gl.uniform3fv(
+      uniforms.u_accentColor,
+      DNA.accentColor
+    );
+
+
+    gl.uniform1f(
       uniforms.u_fadeWidth,
       DNA.fadeWidth
     );
@@ -2888,7 +3107,7 @@
         `DNA ${profile.identity.hash
           .toString(16)
           .padStart(8, "0")
-          .slice(0, 8)} · ${DNA.family} · ${fps.toFixed(0)}fps`;
+          .slice(0, 8)} · ${DNA.species} · ${fps.toFixed(0)}fps`;
 
     }
 
@@ -3418,6 +3637,20 @@
       time
     ) {
 
+      const cssColor =
+        (color, alpha = 1) =>
+          `rgba(${color.map(value => Math.round(value * 255)).join(",")},${alpha})`;
+
+
+      const lineColor =
+        DNA.lineColor ||
+        [0.24, 0.24, 0.25];
+
+
+      const accentColor =
+        DNA.accentColor ||
+        [0.14, 0.14, 0.15];
+
       const activeMasses =
         DNA.activeMasses ||
         6;
@@ -3590,24 +3823,81 @@
             breathing;
 
 
+          const scaledX =
+            Math.max(1, radiusX * scale);
+
+
+          const scaledY =
+            Math.max(1, radiusY * scale);
+
+
           ctx.beginPath();
 
 
-          ctx.ellipse(
-            center[0],
-            center[1],
-            Math.max(1, radiusX * scale),
-            Math.max(1, radiusY * scale),
-            angle,
-            0,
-            Math.PI * 2
-          );
+          if (
+            DNA.renderMode === 1 ||
+            DNA.renderMode === 4
+          ) {
+
+            const sides =
+              DNA.renderMode === 1
+                ? 4
+                : 6;
+
+
+            for (
+              let side = 0;
+              side <= sides;
+              side++
+            ) {
+
+              const theta =
+                angle +
+                side / sides *
+                Math.PI * 2;
+
+
+              const x =
+                center[0] +
+                Math.cos(theta) *
+                scaledX;
+
+
+              const y =
+                center[1] +
+                Math.sin(theta) *
+                scaledY;
+
+
+              if (side === 0) {
+                ctx.moveTo(x, y);
+              }
+              else {
+                ctx.lineTo(x, y);
+              }
+
+            }
+
+          }
+          else {
+
+            ctx.ellipse(
+              center[0],
+              center[1],
+              scaledX,
+              scaledY,
+              angle,
+              0,
+              Math.PI * 2
+            );
+
+          }
 
 
           ctx.strokeStyle =
             ring % 4 === 0
-              ? "rgba(43,44,47,.13)"
-              : "rgba(43,44,47,.075)";
+              ? cssColor(accentColor, 0.15)
+              : cssColor(lineColor, 0.085);
 
 
           ctx.lineWidth =
@@ -3677,14 +3967,17 @@
 
 
         ctx.fillStyle =
-          "#f6f3ee";
+          cssColor(
+            DNA.backgroundColor ||
+            [0.965, 0.954, 0.936]
+          );
 
 
         ctx.fill();
 
 
         ctx.strokeStyle =
-          "rgba(43,44,47,.065)";
+          cssColor(lineColor, 0.075);
 
 
         ctx.lineWidth =
@@ -3704,7 +3997,12 @@
 
 
       ctx.strokeStyle =
-        "rgba(43,44,47,.045)";
+        cssColor(
+          lineColor,
+          DNA.renderMode === 2
+            ? 0.12
+            : 0.045
+        );
 
 
       ctx.lineWidth =
@@ -3731,6 +4029,57 @@
       ctx.stroke();
 
 
+      if (
+        DNA.renderMode === 3
+      ) {
+
+        ctx.strokeStyle =
+          cssColor(lineColor, 0.10);
+
+
+        ctx.lineWidth =
+          0.65;
+
+
+        for (
+          let strand = -8;
+          strand <= 8;
+          strand++
+        ) {
+
+          const y =
+            height * 0.5 +
+            strand *
+            height *
+            0.032;
+
+
+          ctx.beginPath();
+
+
+          ctx.moveTo(
+            0,
+            y
+          );
+
+
+          ctx.bezierCurveTo(
+            width * 0.28,
+            y + Math.sin(seed + strand) * 38,
+            width * 0.68,
+            y - Math.cos(seed * 0.7 + strand) * 46,
+            width,
+            y + Math.sin(seed * 1.3 + strand) * 24
+          );
+
+
+          ctx.stroke();
+
+        }
+
+      }
+
+
       ctx.restore();
 
     }
@@ -3741,7 +4090,13 @@
     ) {
 
       ctx.fillStyle =
-        "#f6f3ee";
+        (() => {
+          const color =
+            DNA.backgroundColor ||
+            [0.965, 0.954, 0.936];
+
+          return `rgb(${color.map(value => Math.round(value * 255)).join(",")})`;
+        })();
 
 
       ctx.fillRect(
