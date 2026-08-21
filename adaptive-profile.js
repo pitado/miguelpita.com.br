@@ -1,12 +1,28 @@
 (() => {
   "use strict";
 
-  const VERSION = "mp-art-v9";
+  const VERSION = "mp-art-v10";
   const TOKEN_KEY = "mp-art-device-token";
   const LEGACY_TOKEN_KEYS = ["mp-art-v8-device-token"];
   const LEGACY_PROFILE_KEYS = ["mp-art-v8-profile", "mp-art-v9-profile"];
   const UINT32_MAX = 0xffffffff;
   const FAMILY_NAMES = ["strata", "archipelago", "spine", "basin"];
+  const GPU_SPECIES = [
+    "topographic",
+    "crystal",
+    "orbital",
+    "filament",
+    "cellular",
+    "void"
+  ];
+  const GPU_PALETTES = [
+    [[0.965, 0.954, 0.936], [0.50, 0.50, 0.51], [0.28, 0.28, 0.29]],
+    [[0.947, 0.956, 0.962], [0.38, 0.45, 0.52], [0.19, 0.28, 0.36]],
+    [[0.969, 0.946, 0.920], [0.55, 0.39, 0.28], [0.34, 0.20, 0.14]],
+    [[0.937, 0.953, 0.943], [0.29, 0.47, 0.39], [0.14, 0.31, 0.25]],
+    [[0.967, 0.955, 0.906], [0.52, 0.43, 0.21], [0.31, 0.25, 0.10]],
+    [[0.953, 0.940, 0.960], [0.44, 0.34, 0.49], [0.25, 0.17, 0.31]]
+  ];
 
   const clamp = (value, min, max) =>
     Math.min(max, Math.max(min, value));
@@ -73,10 +89,10 @@
     };
   }
 
-  function readSeedOverride() {
+  function readSeedOverride(name = "artSeed") {
     try {
       const raw = new URLSearchParams(window.location.search)
-        .get("artSeed")
+        .get(name)
         ?.trim();
 
       if (!raw || !/^(?:0x)?[0-9a-f]{1,8}$/i.test(raw)) {
@@ -157,7 +173,7 @@
       }
 
       const extension = gl.getExtension("WEBGL_debug_renderer_info");
-      const info = extension
+      const identity = extension
         ? {
             vendor: gl.getParameter(extension.UNMASKED_VENDOR_WEBGL) ||
               "unknown-vendor",
@@ -168,6 +184,41 @@
             vendor: "masked-vendor",
             renderer: "masked-renderer"
           };
+
+      const parameter = (name, fallback = 0) => {
+        try {
+          return gl.getParameter(gl[name]) || fallback;
+        }
+        catch {
+          return fallback;
+        }
+      };
+      const precision = (() => {
+        try {
+          return gl.getShaderPrecisionFormat(
+            gl.FRAGMENT_SHADER,
+            gl.HIGH_FLOAT
+          )?.precision || 0;
+        }
+        catch {
+          return 0;
+        }
+      })();
+      const capabilities = [
+        parameter("MAX_TEXTURE_SIZE"),
+        parameter("MAX_RENDERBUFFER_SIZE"),
+        parameter("MAX_FRAGMENT_UNIFORM_VECTORS"),
+        parameter("MAX_VARYING_VECTORS"),
+        parameter("MAX_VERTEX_ATTRIBS"),
+        parameter("MAX_VERTEX_TEXTURE_IMAGE_UNITS"),
+        precision,
+        ...(gl.getSupportedExtensions?.() || []).sort()
+      ].join("|");
+      const info = {
+        ...identity,
+        capabilities,
+        fingerprint: `${identity.vendor}|${identity.renderer}|${capabilities}`
+      };
 
       gl.getExtension("WEBGL_lose_context")?.loseContext();
 
@@ -189,6 +240,7 @@
   function buildIdentity() {
     const renderer = getRendererInfo();
     const overrideHash = readSeedOverride();
+    const gpuOverrideHash = readSeedOverride("gpuSeed");
 
     if (overrideHash !== null) {
       return {
@@ -197,6 +249,7 @@
         token: "seed-override",
         traitsHash: 0,
         tokenHash: 0,
+        gpuHash: gpuOverrideHash ?? overrideHash,
         detailHash: overrideHash,
         renderer,
         source: "override"
@@ -209,9 +262,11 @@
     const shortEdge = Math.min(screenWidth, screenHeight);
     const longEdge = Math.max(screenWidth, screenHeight);
 
+    const gpuHash = gpuOverrideHash ?? hashString(
+      renderer.fingerprint || `${renderer.vendor}|${renderer.renderer}`
+    );
     const traits = [
-      renderer.vendor,
-      renderer.renderer,
+      gpuHash,
       navigator.hardwareConcurrency || 0,
       navigator.deviceMemory || 0,
       navigator.maxTouchPoints || 0,
@@ -223,7 +278,10 @@
 
     const traitsHash = hashString(traits);
     const tokenHash = hashString(token);
-    const hash = mix32(tokenHash ^ 0x9e3779b1);
+    const hash = mix32(
+      gpuHash ^
+      Math.imul(tokenHash, 0x9e3779b1)
+    );
     const detailHash = mix32(
       hash ^ Math.imul(traitsHash, 0x85ebca6b)
     );
@@ -234,6 +292,7 @@
       token,
       traitsHash,
       tokenHash,
+      gpuHash,
       detailHash,
       renderer,
       source: "device"
@@ -284,8 +343,12 @@
 
   function buildGeometryDNA(identity) {
     const rootHash = identity.hash >>> 0;
-    const familyIndex = mix32(rootHash ^ 0x243f6a88) % FAMILY_NAMES.length;
+    const gpuHash = identity.gpuHash >>> 0;
+    const familyIndex = mix32(gpuHash ^ 0x243f6a88) % FAMILY_NAMES.length;
     const family = FAMILY_NAMES[familyIndex];
+    const renderMode = mix32(gpuHash ^ 0xb7e15162) % GPU_SPECIES.length;
+    const species = GPU_SPECIES[renderMode];
+    const palette = GPU_PALETTES[renderMode];
     const layoutRng = stream(rootHash, 0x85a308d3);
     const massRng = stream(rootHash, 0x13198a2e);
     const cavityRng = stream(rootHash, 0x03707344);
@@ -536,6 +599,11 @@
     return {
       family,
       familyIndex,
+      species,
+      renderMode,
+      backgroundColor: palette[0],
+      lineColor: palette[1],
+      accentColor: palette[2],
       activeMasses,
       activeCavities,
       anchorX: masses[0],
