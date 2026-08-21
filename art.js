@@ -26,7 +26,7 @@
 
   if (!window.MPAdaptiveArt) {
     console.error(
-      "adaptive-profile.js V8 não carregou."
+      "adaptive-profile.js V9 não carregou."
     );
 
     return;
@@ -42,8 +42,34 @@
   const DNA =
     profile.geometry;
 
+  const REDUCED_MOTION =
+    window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)"
+    ).matches || false;
+
+  const artTimeValue =
+    Number.parseFloat(
+      new URLSearchParams(
+        window.location.search
+      ).get("artTime")
+    );
+
+  const ART_TIME_OVERRIDE =
+    Number.isFinite(artTimeValue)
+      ? artTimeValue
+      : null;
+
+  const STATIC_FRAME =
+    REDUCED_MOTION ||
+    ART_TIME_OVERRIDE !== null;
+
+  const FORCE_2D =
+    new URLSearchParams(
+      window.location.search
+    ).get("artFallback") === "1";
+
   console.log(
-    "%c MIGUEL PITA · GPU DNA V8 ",
+    "%c MIGUEL PITA · GPU DNA V9 ",
     "background:#111;color:#fff;padding:5px 9px;border-radius:5px;font-weight:bold"
   );
 
@@ -65,7 +91,10 @@
         profile.identity.renderer,
 
       geometry:
-        DNA
+        DNA,
+
+      family:
+        DNA.family
     }
   );
 
@@ -78,10 +107,19 @@
     signature.textContent =
       `DNA ${profile.identity.hash
         .toString(16)
-        .slice(0, 8)}`;
+        .padStart(8, "0")
+        .slice(0, 8)} · ${DNA.family}`;
   }
 
   const gl =
+
+    FORCE_2D
+
+    ?
+
+    null
+
+    :
 
     canvas.getContext(
       "webgl",
@@ -169,7 +207,7 @@
 
     uniform float u_mouseStrength;
 
-    uniform float u_seed;
+    uniform vec2 u_seed;
 
 
     uniform float u_fineDensity;
@@ -227,6 +265,12 @@
     uniform float u_asymmetry;
 
     uniform float u_rightFadeStart;
+
+    uniform float u_fadeWidth;
+
+    uniform float u_fadeStrength;
+
+    uniform float u_fadeDirection;
 
     uniform float u_verticalFade;
 
@@ -648,6 +692,28 @@
         aspect;
 
 
+      float portraitScale =
+
+        mix(
+
+          1.0,
+
+          1.34,
+
+          1.0 -
+          smoothstep(
+            0.56,
+            0.92,
+            aspect
+          )
+
+        );
+
+
+      p *=
+        portraitScale;
+
+
       vec2 mouse =
         u_mouse -
         0.5;
@@ -655,6 +721,10 @@
 
       mouse.x *=
         aspect;
+
+
+      mouse *=
+        portraitScale;
 
 
       /*
@@ -669,8 +739,7 @@
 
           p,
 
-          u_globalAngle *
-          0.18
+          u_globalAngle
 
         );
 
@@ -703,7 +772,7 @@
 
           +
 
-          u_seed *
+          u_seed.x *
           9.0
 
         )
@@ -728,7 +797,7 @@
 
           +
 
-          u_seed *
+          u_seed.y *
           13.0
 
         )
@@ -893,7 +962,10 @@
           +
 
           u_seed *
-          7.0
+          vec2(
+            37.0,
+            91.0
+          )
 
         );
 
@@ -919,8 +991,11 @@
 
           +
 
-          u_seed *
-          17.0
+          u_seed.yx *
+          vec2(
+            113.0,
+            47.0
+          )
 
         );
 
@@ -1045,6 +1120,10 @@
         0.0;
 
 
+      float cavityCutout =
+        0.0;
+
+
       for (
 
         int i = 0;
@@ -1092,7 +1171,7 @@
           length(c);
 
 
-        cavityForce +=
+        float cavityPresence =
 
           exp(
 
@@ -1100,7 +1179,12 @@
             cd *
             2.4
 
-          )
+          );
+
+
+        cavityForce +=
+
+          cavityPresence
 
           *
 
@@ -1130,6 +1214,15 @@
             )
 
           );
+
+
+        cavityCutout +=
+
+          cavityPresence
+
+          *
+
+          u_cavityMeta[i].w;
 
       }
 
@@ -1300,18 +1393,24 @@
 
       float rightFade =
 
-        1.0
+        mix(
 
-        -
+          1.0,
 
-        smoothstep(
+          1.0 -
+          smoothstep(
 
-          u_rightFadeStart,
+            u_rightFadeStart,
 
-          u_rightFadeStart +
-          0.62,
+            u_rightFadeStart +
+            u_fadeWidth,
 
-          p.x
+            q.x *
+            u_fadeDirection
+
+          ),
+
+          u_fadeStrength
 
         );
 
@@ -1370,7 +1469,18 @@
 
         *
 
-        leftFade;
+        leftFade
+
+        *
+
+        (
+          1.0 -
+          clamp(
+            cavityCutout,
+            0.0,
+            0.82
+          )
+        );
 
 
       /*
@@ -1483,11 +1593,17 @@
 
       vec2 technicalCenter =
 
+        rotate2D(
+
+          u_massData[0].xy,
+
+          -u_globalAngle
+
+        )
+
+        +
+
         vec2(
-
-          -0.10
-
-          +
 
           sin(
             u_technicalPhase
@@ -1495,12 +1611,7 @@
 
           *
 
-          0.16,
-
-
-          -0.02
-
-          +
+          0.10,
 
           cos(
             u_technicalPhase
@@ -1508,7 +1619,7 @@
 
           *
 
-          0.10
+          0.07
 
         );
 
@@ -1531,7 +1642,7 @@
 
           fract(
 
-            u_seed *
+            u_seed.x *
             9.13
 
           )
@@ -1570,7 +1681,7 @@
 
           fract(
 
-            u_seed *
+            u_seed.y *
             17.71
 
           )
@@ -1642,8 +1753,13 @@
 
           +
 
-          u_seed *
-          8.0
+          dot(
+            u_seed,
+            vec2(
+              8.0,
+              13.0
+            )
+          )
 
         )
 
@@ -1880,7 +1996,7 @@
   catch (error) {
 
     console.error(
-      "Erro no shader V8:",
+      "Erro no shader V9:",
       error
     );
 
@@ -2032,6 +2148,12 @@
     "u_asymmetry",
 
     "u_rightFadeStart",
+
+    "u_fadeWidth",
+
+    "u_fadeStrength",
+
+    "u_fadeDirection",
 
     "u_verticalFade",
 
@@ -2230,13 +2352,24 @@
 
     const dpr =
 
-      Math.max(
-
-        0.68,
+      Math.min(
 
         deviceDpr *
+        QUALITY.renderScale,
 
-        QUALITY.renderScale
+        Math.sqrt(
+
+          QUALITY.pixelBudget
+
+          /
+
+          Math.max(
+            1,
+            window.innerWidth *
+            window.innerHeight
+          )
+
+        )
 
       );
 
@@ -2347,9 +2480,10 @@
 
   function sendDNAUniforms() {
 
-    gl.uniform1f(
+    gl.uniform2f(
       uniforms.u_seed,
-      profile.identity.seed
+      profile.identity.seedA,
+      profile.identity.seedB
     );
 
 
@@ -2468,6 +2602,24 @@
 
 
     gl.uniform1f(
+      uniforms.u_fadeWidth,
+      DNA.fadeWidth
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_fadeStrength,
+      DNA.fadeStrength
+    );
+
+
+    gl.uniform1f(
+      uniforms.u_fadeDirection,
+      DNA.fadeDirection
+    );
+
+
+    gl.uniform1f(
       uniforms.u_verticalFade,
       DNA.verticalFade
     );
@@ -2563,6 +2715,17 @@
   }
 
 
+  gl.useProgram(
+    program
+  );
+
+
+  sendDNAUniforms();
+
+
+  sendQualityUniforms();
+
+
   /*
   =========================================
   BENCHMARK
@@ -2570,7 +2733,7 @@
   */
 
   let benchmarkDone =
-    false;
+    STATIC_FRAME;
 
 
   let benchmarkStart =
@@ -2592,6 +2755,38 @@
     }
 
 
+    const pageIsActive =
+      !document.hidden
+
+      &&
+
+      (
+        typeof document.hasFocus !==
+          "function"
+
+        ||
+
+        document.hasFocus()
+      );
+
+
+    if (
+      !pageIsActive
+    ) {
+
+      benchmarkStart =
+        now;
+
+
+      benchmarkFrames =
+        0;
+
+
+      return;
+
+    }
+
+
     benchmarkFrames++;
 
 
@@ -2607,6 +2802,27 @@
       2400
     ) {
       return;
+    }
+
+
+    if (
+      benchmarkFrames <
+      45
+    ) {
+
+      if (
+        elapsed >=
+        6000
+      ) {
+
+        benchmarkDone =
+          true;
+
+      }
+
+
+      return;
+
     }
 
 
@@ -2643,6 +2859,12 @@
       profile.quality;
 
 
+    sendQualityUniforms();
+
+
+    resize();
+
+
     console.log(
 
       `Performance real: ${fps.toFixed(1)} FPS`
@@ -2665,7 +2887,8 @@
 
         `DNA ${profile.identity.hash
           .toString(16)
-          .slice(0, 8)} · ${fps.toFixed(0)}fps`;
+          .padStart(8, "0")
+          .slice(0, 8)} · ${DNA.family} · ${fps.toFixed(0)}fps`;
 
     }
 
@@ -2686,9 +2909,86 @@
     startTime;
 
 
+  document.addEventListener(
+
+    "visibilitychange",
+
+    () => {
+
+      previousTime =
+        performance.now();
+
+
+      if (
+        !benchmarkDone
+      ) {
+
+        benchmarkStart =
+          previousTime;
+
+
+        benchmarkFrames =
+          0;
+
+      }
+
+
+      if (
+        !document.hidden &&
+        STATIC_FRAME
+      ) {
+
+        requestAnimationFrame(
+          render
+        );
+
+      }
+
+    }
+
+  );
+
+
   function render(
     now
   ) {
+
+    if (
+      document.hidden
+    ) {
+
+      previousTime =
+        now;
+
+
+      if (
+        !benchmarkDone
+      ) {
+
+        benchmarkStart =
+          now;
+
+
+        benchmarkFrames =
+          0;
+
+      }
+
+
+      if (
+        !STATIC_FRAME
+      ) {
+
+        requestAnimationFrame(
+          render
+        );
+
+      }
+
+
+      return;
+
+    }
 
     resize();
 
@@ -2777,20 +3077,37 @@
 
     const time =
 
+      ART_TIME_OVERRIDE
+
+      ??
+
       (
+
+        REDUCED_MOTION
+
+        ?
+
+        0
+
+        :
+
         (
-          now -
-          startTime
+
+          (
+            now -
+            startTime
+          )
+
+          /
+
+          1000
         )
 
-        /
+        *
 
-        1000
-      )
+        DNA.animationSpeed
 
-      *
-
-      DNA.animationSpeed;
+      );
 
 
     gl.useProgram(
@@ -2838,12 +3155,6 @@
     );
 
 
-    sendDNAUniforms();
-
-
-    sendQualityUniforms();
-
-
     gl.drawArrays(
 
       gl.TRIANGLES,
@@ -2855,9 +3166,15 @@
     );
 
 
-    requestAnimationFrame(
-      render
-    );
+    if (
+      !STATIC_FRAME
+    ) {
+
+      requestAnimationFrame(
+        render
+      );
+
+    }
 
   }
 
@@ -2865,6 +3182,28 @@
   requestAnimationFrame(
     render
   );
+
+
+  if (
+    STATIC_FRAME
+  ) {
+
+    window.addEventListener(
+
+      "resize",
+
+      () =>
+        requestAnimationFrame(
+          render
+        ),
+
+      {
+        passive: true
+      }
+
+    );
+
+  }
 
 
   /*
@@ -2937,7 +3276,21 @@
           window.devicePixelRatio ||
           1,
 
-          1.2
+          1.2,
+
+          Math.sqrt(
+
+            QUALITY.pixelBudget
+
+            /
+
+            Math.max(
+              1,
+              window.innerWidth *
+              window.innerHeight
+            )
+
+          )
 
         );
 
@@ -3006,7 +3359,44 @@
 
       "resize",
 
-      resize2D
+      () => {
+
+        resize2D();
+
+
+        if (
+          STATIC_FRAME
+        ) {
+
+          requestAnimationFrame(
+            frame
+          );
+
+        }
+
+      }
+
+    );
+
+
+    document.addEventListener(
+
+      "visibilitychange",
+
+      () => {
+
+        if (
+          !document.hidden &&
+          STATIC_FRAME
+        ) {
+
+          requestAnimationFrame(
+            frame
+          );
+
+        }
+
+      }
 
     );
 
@@ -3022,6 +3412,328 @@
       *
 
       2;
+
+
+    function drawGeneratedFallback(
+      time
+    ) {
+
+      const activeMasses =
+        DNA.activeMasses ||
+        6;
+
+
+      const activeCavities =
+        DNA.activeCavities ||
+        3;
+
+
+      const portraitProgress =
+        Math.min(
+          1,
+          Math.max(
+            0,
+            (
+              width /
+              height -
+              0.56
+            ) /
+            0.36
+          )
+        );
+
+
+      const portraitSmooth =
+        portraitProgress *
+        portraitProgress *
+        (
+          3 -
+          2 *
+          portraitProgress
+        );
+
+
+      const portraitScale =
+        1 +
+        (
+          1 -
+          portraitSmooth
+        ) *
+        0.34;
+
+
+      const geometryScale =
+        height /
+        portraitScale;
+
+
+      const rotation =
+        -DNA.globalAngle;
+
+
+      const rotationCos =
+        Math.cos(rotation);
+
+
+      const rotationSin =
+        Math.sin(rotation);
+
+
+      const toCanvasPoint =
+        (x, y) => {
+
+          const rotatedX =
+            x * rotationCos -
+            y * rotationSin;
+
+
+          const rotatedY =
+            x * rotationSin +
+            y * rotationCos;
+
+
+          return [
+            width * 0.5 +
+              rotatedX *
+              geometryScale,
+
+            height * 0.5 -
+              rotatedY *
+              geometryScale
+          ];
+
+        };
+
+
+      const ringCount =
+        Math.max(
+          5,
+          Math.round(
+            QUALITY.fineLineDensity /
+            6
+          )
+        );
+
+
+      ctx.save();
+
+
+      ctx.lineCap =
+        "round";
+
+
+      for (
+        let massIndex = 0;
+        massIndex < activeMasses;
+        massIndex++
+      ) {
+
+        const offset =
+          massIndex * 4;
+
+
+        const center =
+          toCanvasPoint(
+            DNA.masses[offset],
+            DNA.masses[offset + 1]
+          );
+
+
+        const radiusX =
+          DNA.masses[offset + 2] *
+          geometryScale;
+
+
+        const radiusY =
+          DNA.masses[offset + 3] *
+          geometryScale;
+
+
+        const weight =
+          DNA.massMeta[offset + 2];
+
+
+        const phase =
+          DNA.massMeta[offset + 3];
+
+
+        const angle =
+          -(
+            DNA.globalAngle +
+            DNA.massMeta[offset]
+          );
+
+
+        const breathing =
+          1 +
+          Math.sin(
+            time * 0.75 +
+            phase
+          ) *
+          DNA.breathing;
+
+
+        for (
+          let ring = 0;
+          ring < ringCount;
+          ring++
+        ) {
+
+          const level =
+            (ring + 1) /
+            (ringCount + 1);
+
+
+          const scale =
+            (0.34 + level * 0.74) *
+            weight *
+            breathing;
+
+
+          ctx.beginPath();
+
+
+          ctx.ellipse(
+            center[0],
+            center[1],
+            Math.max(1, radiusX * scale),
+            Math.max(1, radiusY * scale),
+            angle,
+            0,
+            Math.PI * 2
+          );
+
+
+          ctx.strokeStyle =
+            ring % 4 === 0
+              ? "rgba(43,44,47,.13)"
+              : "rgba(43,44,47,.075)";
+
+
+          ctx.lineWidth =
+            ring % 4 === 0
+              ? 0.9
+              : 0.55;
+
+
+          ctx.stroke();
+
+        }
+
+      }
+
+
+      for (
+        let cavityIndex = 0;
+        cavityIndex < activeCavities;
+        cavityIndex++
+      ) {
+
+        const offset =
+          cavityIndex * 4;
+
+
+        const center =
+          toCanvasPoint(
+            DNA.cavities[offset],
+            DNA.cavities[offset + 1]
+          );
+
+
+        const cutout =
+          DNA.cavityMeta[offset + 3];
+
+
+        const radiusScale =
+          0.72 +
+          cutout * 0.34;
+
+
+        ctx.beginPath();
+
+
+        ctx.ellipse(
+          center[0],
+          center[1],
+          Math.max(
+            1,
+            DNA.cavities[offset + 2] *
+              geometryScale *
+              radiusScale
+          ),
+          Math.max(
+            1,
+            DNA.cavities[offset + 3] *
+              geometryScale *
+              radiusScale
+          ),
+          -(
+            DNA.globalAngle +
+            DNA.cavityMeta[offset]
+          ),
+          0,
+          Math.PI * 2
+        );
+
+
+        ctx.fillStyle =
+          "#f6f3ee";
+
+
+        ctx.fill();
+
+
+        ctx.strokeStyle =
+          "rgba(43,44,47,.065)";
+
+
+        ctx.lineWidth =
+          0.6;
+
+
+        ctx.stroke();
+
+      }
+
+
+      const technicalCenter =
+        toCanvasPoint(
+          DNA.masses[0],
+          DNA.masses[1]
+        );
+
+
+      ctx.strokeStyle =
+        "rgba(43,44,47,.045)";
+
+
+      ctx.lineWidth =
+        0.6;
+
+
+      ctx.beginPath();
+
+
+      ctx.arc(
+        technicalCenter[0],
+        technicalCenter[1],
+        geometryScale *
+          (
+            0.46 +
+            profile.identity.seedA *
+            0.10
+          ),
+        0,
+        Math.PI * 2
+      );
+
+
+      ctx.stroke();
+
+
+      ctx.restore();
+
+    }
 
 
     function frame(
@@ -3047,15 +3759,50 @@
 
       const t =
 
-        ms
+        ART_TIME_OVERRIDE
 
-        *
+        ??
 
-        0.00013
+        (
 
-        *
+          REDUCED_MOTION
 
-        DNA.animationSpeed;
+          ?
+
+          0
+
+          :
+
+          ms *
+          0.00013 *
+          DNA.animationSpeed
+
+        );
+
+
+      if (
+        DNA.family
+      ) {
+
+        drawGeneratedFallback(
+          t
+        );
+
+
+        if (
+          !STATIC_FRAME
+        ) {
+
+          requestAnimationFrame(
+            frame
+          );
+
+        }
+
+
+        return;
+
+      }
 
 
       const count =
@@ -3314,9 +4061,15 @@
       }
 
 
-      requestAnimationFrame(
-        frame
-      );
+      if (
+        !STATIC_FRAME
+      ) {
+
+        requestAnimationFrame(
+          frame
+        );
+
+      }
 
     }
 

@@ -36,7 +36,8 @@ body {
   position: relative;
   width: 100vw;
   height: 100vh;
-  min-height: 480px;
+  height: 100dvh;
+  min-height: 0;
   overflow: hidden;
   isolation: isolate;
 
@@ -304,7 +305,7 @@ body {
 
 @media (max-width: 760px) {
   .stage {
-    min-height: 420px;
+    min-height: 0;
   }
 
   .shortcut-dock {
