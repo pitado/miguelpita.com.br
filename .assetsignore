@@ -1,0 +1,7 @@
+**/node_modules
+**/.git
+**/.wrangler
+/tests
+package.json
+wrangler.jsonc
+.assetsignore
