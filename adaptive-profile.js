@@ -15,7 +15,11 @@
     "cellular",
     "void"
   ];
-  const GPU_PALETTES = [
+  // Paletas fixas antigas. Não são mais usadas diretamente (a cor agora é
+  // gerada continuamente em HSL, ver buildContinuousPalette), mas ficam
+  // aqui guardadas: se a versão livre não convencer, dá pra voltar a
+  // escolher 1 destas 6 por índice em vez de gerar continuamente.
+  const LEGACY_GPU_PALETTES = [
     [[0.965, 0.954, 0.936], [0.50, 0.50, 0.51], [0.28, 0.28, 0.29]],
     [[0.947, 0.956, 0.962], [0.38, 0.45, 0.52], [0.19, 0.28, 0.36]],
     [[0.969, 0.946, 0.920], [0.55, 0.39, 0.28], [0.34, 0.20, 0.14]],
@@ -79,6 +83,57 @@
 
   function between(rng, min, max) {
     return lerp(min, max, rng());
+  }
+
+  function hslToRgb(hue, saturation, lightness) {
+    const h = (((hue % 360) + 360) % 360) / 60;
+    const s = clamp(saturation, 0, 1);
+    const l = clamp(lightness, 0, 1);
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs((h % 2) - 1));
+    const m = l - c / 2;
+
+    let r = 0;
+    let g = 0;
+    let b = 0;
+
+    if (h < 1) { r = c; g = x; b = 0; }
+    else if (h < 2) { r = x; g = c; b = 0; }
+    else if (h < 3) { r = 0; g = c; b = x; }
+    else if (h < 4) { r = 0; g = x; b = c; }
+    else if (h < 5) { r = x; g = 0; b = c; }
+    else { r = c; g = 0; b = x; }
+
+    return [r + m, g + m, b + m];
+  }
+
+  // Gera a paleta livremente em HSL a partir do rng do visitante, em vez
+  // de escolher 1 de N combinações fixas. O matiz (hue) é totalmente
+  // livre (0-360), então não existe um número máximo de "looks"
+  // possíveis. Mantém o caráter minimalista (fundo claro, linha média,
+  // acento escuro e saturado) que o site já tinha.
+  function buildContinuousPalette(rng) {
+    const hue = rng() * 360;
+    const spread = between(rng, 10, 26);
+    const saturation = between(rng, 0.14, 0.46);
+
+    const backgroundColor = hslToRgb(
+      hue,
+      saturation * 0.5,
+      between(rng, 0.90, 0.965)
+    );
+    const lineColor = hslToRgb(
+      hue + spread,
+      clamp(saturation + 0.06, 0, 0.6),
+      between(rng, 0.36, 0.56)
+    );
+    const accentColor = hslToRgb(
+      hue - spread,
+      clamp(saturation + 0.16, 0, 0.72),
+      between(rng, 0.16, 0.30)
+    );
+
+    return [backgroundColor, lineColor, accentColor];
   }
 
   function seedChannels(hash) {
@@ -344,11 +399,24 @@
   function buildGeometryDNA(identity) {
     const rootHash = identity.hash >>> 0;
     const gpuHash = identity.gpuHash >>> 0;
-    const familyIndex = mix32(gpuHash ^ 0x243f6a88) % FAMILY_NAMES.length;
+
+    // Uma GPU mascarada ou muito comum (Firefox com resistFingerprinting,
+    // Safari, várias configs de privacidade zeram o
+    // WEBGL_debug_renderer_info; e mesmo sem isso, um punhado de GPUs
+    // domina o mercado) faz um monte de visitante cair no mesmo gpuHash.
+    // Antes, família e espécie vinham só dele — por isso a arte
+    // "engessava" em poucas combinações. Aqui misturamos com o rootHash
+    // (que já carrega o token aleatório por navegador), então a GPU ainda
+    // participa da composição, mas nunca sozinha: cada visitante segue
+    // tendo a sua.
+    const compositionHash = mix32(
+      gpuHash ^ Math.imul(rootHash, 0x2545f491)
+    );
+    const familyIndex = mix32(compositionHash ^ 0x243f6a88) % FAMILY_NAMES.length;
     const family = FAMILY_NAMES[familyIndex];
-    const renderMode = mix32(gpuHash ^ 0xb7e15162) % GPU_SPECIES.length;
+    const renderMode = mix32(compositionHash ^ 0xb7e15162) % GPU_SPECIES.length;
     const species = GPU_SPECIES[renderMode];
-    const palette = GPU_PALETTES[renderMode];
+    const palette = buildContinuousPalette(stream(compositionHash, 0xc2b2ae35));
     const layoutRng = stream(rootHash, 0x85a308d3);
     const massRng = stream(rootHash, 0x13198a2e);
     const cavityRng = stream(rootHash, 0x03707344);
