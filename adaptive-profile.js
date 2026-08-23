@@ -115,7 +115,7 @@
   function buildContinuousPalette(rng) {
     const hue = rng() * 360;
     const spread = between(rng, 10, 26);
-    const saturation = between(rng, 0.14, 0.46);
+    const saturation = between(rng, 0.22, 0.58);
 
     const backgroundColor = hslToRgb(
       hue,
@@ -124,13 +124,13 @@
     );
     const lineColor = hslToRgb(
       hue + spread,
-      clamp(saturation + 0.06, 0, 0.6),
-      between(rng, 0.36, 0.56)
+      clamp(saturation + 0.08, 0, 0.68),
+      between(rng, 0.34, 0.54)
     );
     const accentColor = hslToRgb(
       hue - spread,
-      clamp(saturation + 0.16, 0, 0.72),
-      between(rng, 0.16, 0.30)
+      clamp(saturation + 0.20, 0, 0.82),
+      between(rng, 0.12, 0.26)
     );
 
     return [backgroundColor, lineColor, accentColor];
@@ -380,19 +380,30 @@
     return clamp(Math.round(score), 15, 95);
   }
 
-  function qualityFromPower(powerScore) {
+  function qualityFromPower(powerScore, identity) {
     const amount = clamp((powerScore - 15) / 80, 0, 1);
+
+    // renderScale/pixelBudget continuam só do desempenho do aparelho —
+    // mexer nisso por aleatoriedade poderia travar um dispositivo fraco.
+    // Mas densidade/ruído/detalhe são escolhas de estilo, não limite
+    // técnico: cada visitante ganha um tempero próprio nelas (a partir
+    // do rootHash, então gente com hardware parecido deixa de receber
+    // a mesma textura), sempre dentro de uma faixa seura pro aparelho.
+    const styleRng = identity ? stream(identity.hash >>> 0, 0x9e3d1c2b) : null;
+    const jitter = () => (styleRng ? between(styleRng, 0.82, 1.18) : 1);
 
     return {
       powerScore,
       renderScale: lerp(0.72, 1.04, amount),
       pixelBudget: Math.round(lerp(750000, 3000000, amount)),
-      fineLineDensity: Math.round(lerp(30, 56, amount)),
-      secondaryLineDensity: lerp(20, 38, amount),
-      structuralDensity: lerp(7, 14, amount),
-      noiseWeight: lerp(0.55, 1, amount),
-      microDetail: lerp(0.018, 0.055, amount),
-      arcOpacity: lerp(0.03, 0.07, amount)
+      fineLineDensity: Math.round(
+        clamp(lerp(30, 56, amount) * jitter(), 24, 62)
+      ),
+      secondaryLineDensity: clamp(lerp(20, 38, amount) * jitter(), 16, 44),
+      structuralDensity: clamp(lerp(7, 14, amount) * jitter(), 5, 17),
+      noiseWeight: clamp(lerp(0.55, 1, amount) * jitter(), 0.45, 1.15),
+      microDetail: clamp(lerp(0.018, 0.055, amount) * jitter(), 0.014, 0.065),
+      arcOpacity: clamp(lerp(0.03, 0.07, amount) * jitter(), 0.022, 0.085)
     };
   }
 
@@ -737,7 +748,7 @@
       version: VERSION,
       identity,
       geometry: buildGeometryDNA(identity),
-      quality: qualityFromPower(basePowerScore),
+      quality: qualityFromPower(basePowerScore, identity),
       basePowerScore,
       powerScore: basePowerScore,
       measuredFps: null
@@ -759,7 +770,7 @@
       basePowerScore,
       powerScore,
       measuredFps: fps,
-      quality: qualityFromPower(powerScore)
+      quality: qualityFromPower(powerScore, profile.identity)
     };
 
     return updated;
