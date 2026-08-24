@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme-ready="false">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f6f3ee">
+  <meta name="description" content="APIs e serviços construídos por Miguel Pita.">
+  <title>API · Miguel Pita</title>
+  <link rel="stylesheet" href="../internal.css?v=1">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Voltar para a página inicial">
+        <span class="brand-mark" aria-hidden="true"></span>
+        Miguel Pita
+      </a>
+
+      <nav class="topnav" aria-label="Navegação interna">
+        <a href="/">Home</a>
+        <a href="/lab">Lab</a>
+        <a href="/api" aria-current="page">API</a>
+        <a href="/contact">Contato</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <div class="eyebrow">API / laboratório</div>
+      <h1>Serviços que existem por trás dos projetos.</h1>
+      <p>
+        Endpoints, experimentos e pequenas infraestruturas que eu construo para
+        transformar ideias em produtos que realmente funcionam.
+      </p>
+
+      <div class="meta-row">
+        <span class="pill live">produção</span>
+        <span class="pill">Cloudflare Workers</span>
+        <span class="pill">D1</span>
+        <span class="pill">gramática <span data-grammar style="margin-left:4px">dna</span></span>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="receitando-title">
+      <div class="section-head">
+        <h2 id="receitando-title">Receitando API</h2>
+        <p>
+          API de produção do Receitando: receitas, ingredientes, matching por
+          compatibilidade e autenticação.
+        </p>
+      </div>
+
+      <div class="base-url panel">
+        <code id="baseUrl">https://api.receitando.miguelpita.com.br</code>
+        <button class="copy-button" type="button" data-copy="#baseUrl">copiar base URL</button>
+      </div>
+
+      <div class="endpoint-list panel" style="margin-top:12px">
+        <div class="endpoint">
+          <span class="method">GET</span>
+          <code>/api/health</code>
+          <p>Healthcheck do Worker da API.</p>
+        </div>
+        <div class="endpoint">
+          <span class="method">GET</span>
+          <code>/api/ingredients</code>
+          <p>Lista o catálogo de ingredientes disponíveis no sistema.</p>
+        </div>
+        <div class="endpoint">
+          <span class="method">GET</span>
+          <code>/api/recipes</code>
+          <p>Lista as receitas cadastradas.</p>
+        </div>
+        <div class="endpoint">
+          <span class="method">GET</span>
+          <code>/api/recipes/slug/:slug</code>
+          <p>Busca os detalhes de uma receita pelo slug.</p>
+        </div>
+        <div class="endpoint">
+          <span class="method">POST</span>
+          <code>/api/recipes/match</code>
+          <p>Compara ingredientes disponíveis e calcula compatibilidade com receitas.</p>
+        </div>
+        <div class="endpoint">
+          <span class="method">POST</span>
+          <code>/api/auth/register</code>
+          <p>Cria uma conta e inicia a sessão.</p>
+        </div>
+        <div class="endpoint">
+          <span class="method">POST</span>
+          <code>/api/auth/login</code>
+          <p>Autentica um usuário.</p>
+        </div>
+        <div class="endpoint">
+          <span class="method">GET</span>
+          <code>/api/auth/me</code>
+          <p>Retorna o usuário da sessão atual.</p>
+        </div>
+        <div class="endpoint">
+          <span class="method">POST</span>
+          <code>/api/auth/logout</code>
+          <p>Encerra a sessão autenticada.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="example-title">
+      <div class="section-head">
+        <h2 id="example-title">Matching</h2>
+        <p>
+          O núcleo da ideia: informar o que você tem em casa e receber as receitas
+          ordenadas pela compatibilidade.
+        </p>
+      </div>
+
+      <div class="code-box panel">
+        <button class="copy-button" type="button" data-copy="#curlExample">copiar curl</button>
+        <pre><code id="curlExample">curl -X POST https://api.receitando.miguelpita.com.br/api/recipes/match \
+  -H "Content-Type: application/json" \
+  -d '{"ingredients":["ovo","banana","farinha de trigo","leite"]}'</code></pre>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="links-title">
+      <div class="section-head">
+        <h2 id="links-title">Abrir projeto</h2>
+        <p>Produção e código-fonte do Receitando.</p>
+      </div>
+
+      <div class="link-grid">
+        <a class="link-card panel" href="https://receitando.miguelpita.com.br" target="_blank" rel="noreferrer">
+          <div>
+            <small>produção</small>
+            <strong>Receitando</strong>
+          </div>
+          <span>Aplicação publicada em Cloudflare.</span>
+        </a>
+
+        <a class="link-card panel" href="https://github.com/pitado/receitando" target="_blank" rel="noreferrer">
+          <div>
+            <small>código</small>
+            <strong>GitHub</strong>
+          </div>
+          <span>Frontend, API Worker, D1 e automações de deploy.</span>
+        </a>
+      </div>
+    </section>
+
+    <div class="footer-note">BR // 2026 // BUILDING THINGS</div>
+  </main>
+
+  <script src="../adaptive-profile.js?v=10"></script>
+  <script src="../topology-v11.js?v=11"></script>
+  <script src="../presence-v11.1.js?v=11.1"></script>
+  <script src="../grammar-v12.js?v=12"></script>
+  <script src="../internal-theme.js?v=1"></script>
+  <script src="./api.js?v=1"></script>
+</body>
+</html>
