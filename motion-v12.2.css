@@ -1,6 +1,4 @@
 :root {
-  --motion-bg: var(--bg);
-  --motion-line: rgba(90, 110, 98, .34);
   --art-offset-x: 0px;
   --art-offset-y: 0px;
   --light-offset-x: 0px;
@@ -8,8 +6,6 @@
   --art-scale: 1.006;
   --art-tilt-x: 0deg;
   --art-tilt-y: 0deg;
-  --reveal-edge: 0%;
-  --reveal-glow-x: 0%;
 }
 
 .stage.motion-enabled #webgl {
@@ -20,26 +16,6 @@
     rotateY(var(--art-tilt-y));
   transform-origin: 50% 50%;
   will-change: transform;
-
-  -webkit-mask-image: linear-gradient(
-    104deg,
-    #000 0%,
-    #000 calc(var(--reveal-edge) - 9%),
-    rgba(0, 0, 0, .72) calc(var(--reveal-edge) - 3%),
-    transparent calc(var(--reveal-edge) + 8%)
-  );
-  mask-image: linear-gradient(
-    104deg,
-    #000 0%,
-    #000 calc(var(--reveal-edge) - 9%),
-    rgba(0, 0, 0, .72) calc(var(--reveal-edge) - 3%),
-    transparent calc(var(--reveal-edge) + 8%)
-  );
-}
-
-.stage.motion-enabled.motion-revealed #webgl {
-  -webkit-mask-image: none;
-  mask-image: none;
 }
 
 .stage.motion-enabled .soft-light {
@@ -50,50 +26,7 @@
   will-change: transform, opacity;
 }
 
-.art-reveal-trace {
-  position: absolute;
-  inset: -12%;
-  z-index: 4;
-  pointer-events: none;
-  opacity: 0;
-  overflow: hidden;
-  mix-blend-mode: multiply;
-}
-
-.stage.motion-enabled:not(.motion-revealed) .art-reveal-trace {
-  opacity: 1;
-}
-
-.art-reveal-trace::before {
-  content: "";
-  position: absolute;
-  top: -12%;
-  bottom: -12%;
-  left: var(--reveal-glow-x);
-  width: 15vw;
-  min-width: 100px;
-  max-width: 250px;
-  transform: translateX(-50%) rotate(5deg);
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in srgb, var(--motion-line) 20%, transparent) 35%,
-    color-mix(in srgb, var(--motion-line) 38%, transparent) 52%,
-    transparent 100%
-  );
-  filter: blur(20px);
-  opacity: .34;
-}
-
 .stage.motion-enabled .grain {
-  transition: opacity 900ms ease;
-}
-
-.stage.motion-enabled:not(.motion-revealed) .grain {
-  opacity: .009;
-}
-
-.stage.motion-enabled.motion-revealed .grain {
   opacity: .016;
 }
 
@@ -103,22 +36,11 @@
       translate3d(var(--art-offset-x), var(--art-offset-y), 0)
       scale(var(--art-scale));
   }
-
-  .art-reveal-trace::before {
-    width: 24vw;
-    opacity: .24;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .art-reveal-trace {
-    display: none !important;
-  }
-
   .stage.motion-enabled #webgl,
   .stage.motion-enabled .soft-light {
     transform: none !important;
-    -webkit-mask-image: none !important;
-    mask-image: none !important;
   }
 }
