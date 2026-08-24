@@ -96,6 +96,8 @@
     stage.style.setProperty("--reveal-glow-x", "120%");
     stage.style.setProperty("--art-offset-x", "0px");
     stage.style.setProperty("--art-offset-y", "0px");
+    stage.style.setProperty("--light-offset-x", "0px");
+    stage.style.setProperty("--light-offset-y", "0px");
     stage.style.setProperty("--art-scale", "1");
     stage.style.setProperty("--art-tilt-x", "0deg");
     stage.style.setProperty("--art-tilt-y", "0deg");
@@ -199,6 +201,8 @@
 
     stage.style.setProperty("--art-offset-x", `${offsetX.toFixed(2)}px`);
     stage.style.setProperty("--art-offset-y", `${offsetY.toFixed(2)}px`);
+    stage.style.setProperty("--light-offset-x", `${(offsetX * 0.42).toFixed(2)}px`);
+    stage.style.setProperty("--light-offset-y", `${(offsetY * 0.42).toFixed(2)}px`);
     stage.style.setProperty("--art-scale", scale.toFixed(5));
     stage.style.setProperty("--art-tilt-x", `${tiltX.toFixed(3)}deg`);
     stage.style.setProperty("--art-tilt-y", `${tiltY.toFixed(3)}deg`);
