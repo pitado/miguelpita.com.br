@@ -38,20 +38,8 @@
     };
   }
 
-  function easeOutCubic(value) {
-    return 1 - Math.pow(1 - value, 3);
-  }
-
   function easeInOutSine(value) {
     return -(Math.cos(Math.PI * value) - 1) / 2;
-  }
-
-  function colorToCss(color, fallback) {
-    if (!Array.isArray(color) || color.length < 3) return fallback;
-    const rgb = color.slice(0, 3).map(channel =>
-      Math.round(clamp(Number(channel) || 0, 0, 1) * 255)
-    );
-    return `rgb(${rgb[0]} ${rgb[1]} ${rgb[2]})`;
   }
 
   let profile = null;
@@ -82,18 +70,7 @@
 
   const grammarFactor = grammarMotion[grammar] || 0.84;
 
-  stage.style.setProperty(
-    "--motion-bg",
-    colorToCss(geometry.backgroundColor, "#f6f3ee")
-  );
-  stage.style.setProperty(
-    "--motion-line",
-    colorToCss(geometry.lineColor, "rgb(90 110 98)")
-  );
-
   if (reducedMotion) {
-    stage.style.setProperty("--reveal-edge", "120%");
-    stage.style.setProperty("--reveal-glow-x", "120%");
     stage.style.setProperty("--art-offset-x", "0px");
     stage.style.setProperty("--art-offset-y", "0px");
     stage.style.setProperty("--light-offset-x", "0px");
@@ -101,14 +78,10 @@
     stage.style.setProperty("--art-scale", "1");
     stage.style.setProperty("--art-tilt-x", "0deg");
     stage.style.setProperty("--art-tilt-y", "0deg");
-    stage.classList.add("motion-revealed");
     return;
   }
 
   const state = {
-    start: performance.now(),
-    revealDuration: 1750 + rng() * 900,
-    revealDelay: 80 + rng() * 180,
     pointerX: 0,
     pointerY: 0,
     targetX: 0,
@@ -118,8 +91,7 @@
     phaseC: rng() * Math.PI * 2,
     driftSpeedA: 0.00011 + rng() * 0.00006,
     driftSpeedB: 0.000075 + rng() * 0.00005,
-    breatheSpeed: 0.00016 + rng() * 0.00007,
-    revealed: false
+    breatheSpeed: 0.00016 + rng() * 0.00007
   };
 
   function updatePointer(event) {
@@ -144,28 +116,6 @@
   }
 
   function render(now) {
-    const elapsed = now - state.start;
-    const revealRaw = clamp(
-      (elapsed - state.revealDelay) / state.revealDuration,
-      0,
-      1
-    );
-    const reveal = easeOutCubic(revealRaw);
-
-    if (!state.revealed) {
-      const edge = lerp(-4, 116, reveal);
-      stage.style.setProperty("--reveal-edge", `${edge.toFixed(2)}%`);
-      stage.style.setProperty(
-        "--reveal-glow-x",
-        `${clamp(edge, -4, 108).toFixed(2)}%`
-      );
-
-      if (revealRaw >= 1) {
-        state.revealed = true;
-        stage.classList.add("motion-revealed");
-      }
-    }
-
     state.pointerX = lerp(state.pointerX, state.targetX, 0.038);
     state.pointerY = lerp(state.pointerY, state.targetY, 0.038);
 
