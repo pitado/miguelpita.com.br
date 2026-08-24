@@ -3,6 +3,8 @@
   --motion-line: rgba(90, 110, 98, .34);
   --art-offset-x: 0px;
   --art-offset-y: 0px;
+  --light-offset-x: 0px;
+  --light-offset-y: 0px;
   --art-scale: 1.006;
   --art-tilt-x: 0deg;
   --art-tilt-y: 0deg;
@@ -42,11 +44,7 @@
 
 .stage.motion-enabled .soft-light {
   transform:
-    translate3d(
-      calc(var(--art-offset-x) * .42),
-      calc(var(--art-offset-y) * .42),
-      0
-    )
+    translate3d(var(--light-offset-x), var(--light-offset-y), 0)
     scale(1.012);
   transform-origin: 50% 50%;
   will-change: transform, opacity;
