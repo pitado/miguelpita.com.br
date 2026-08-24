@@ -18,7 +18,15 @@ test("home loads motion after the curated shader stack", () => {
   assert.ok(motion > art);
   assert.match(html, /motion-v12\.2\.css/);
   assert.match(html, /class="stage motion-enabled"/);
-  assert.match(html, /art-reveal-trace/);
+  assert.doesNotMatch(html, /art-reveal-trace/);
+});
+
+test("initial reveal was fully removed", () => {
+  const js = read("motion-v12.2.js");
+  const css = read("motion-v12.2.css");
+
+  assert.doesNotMatch(js, /revealDuration|revealDelay|revealRaw|motion-revealed/);
+  assert.doesNotMatch(css, /reveal-edge|reveal-glow|mask-image|art-reveal-trace/);
 });
 
 test("motion layer respects reduced-motion preferences", () => {
@@ -26,9 +34,7 @@ test("motion layer respects reduced-motion preferences", () => {
   const css = read("motion-v12.2.css");
 
   assert.match(js, /prefers-reduced-motion: reduce/);
-  assert.match(js, /motion-revealed/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
-  assert.match(css, /mask-image: none !important/);
 });
 
 test("motion is tied to the procedural DNA and grammar", () => {
@@ -40,11 +46,13 @@ test("motion is tied to the procedural DNA and grammar", () => {
   assert.match(js, /grammarMotion/);
 });
 
-test("motion stays subtle and uses requestAnimationFrame", () => {
+test("continuous motion stays subtle and uses requestAnimationFrame", () => {
   const js = read("motion-v12.2.js");
 
   assert.match(js, /requestAnimationFrame\(render\)/);
   assert.match(js, /pointermove/);
   assert.match(js, /finePointer/);
   assert.match(js, /breatheAmount/);
+  assert.match(js, /idleAmplitudeX/);
+  assert.match(js, /idleAmplitudeY/);
 });
