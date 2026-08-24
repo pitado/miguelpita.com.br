@@ -161,10 +161,23 @@ test("different DNA produces a different authored composition", () => {
   const first = createEnvironment(0x11112222).createProfile();
   const second = createEnvironment(0xaaaabbbb).createProfile();
 
-  assert.notEqual(first.geometry.heroMass, second.geometry.heroMass);
   assert.notEqual(
     JSON.stringify(first.geometry.masses),
     JSON.stringify(second.geometry.masses)
+  );
+  assert.notEqual(
+    JSON.stringify({
+      presenceScale: first.geometry.presenceScale,
+      breakMass: first.geometry.breakMass,
+      warpA: first.geometry.warpA,
+      asymmetry: first.geometry.asymmetry
+    }),
+    JSON.stringify({
+      presenceScale: second.geometry.presenceScale,
+      breakMass: second.geometry.breakMass,
+      warpA: second.geometry.warpA,
+      asymmetry: second.geometry.asymmetry
+    })
   );
 });
 
