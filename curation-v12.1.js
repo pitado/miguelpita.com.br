@@ -6,57 +6,87 @@
     return;
   }
 
+  /* =========================================================
+     CURADORIA POR REJEIÇÃO (V13)
+
+     A V12.1 era uma curadoria de REPARO. Ela pontuava a peça e,
+     se a nota fosse baixa, aplicava correção proporcional a um
+     repairStrength de até 1.0: recentralizava, expandia até o
+     viewport, forçava uma massa protagonista, puxava as massas
+     soltas para perto, domava cavidades e achatava a cor. A nota
+     mediana subia de 78 para 85.
+
+     Esse é exatamente o mecanismo errado. Um score alto não
+     descrevia "peça boa", descrevia UMA peça: larga, centrada,
+     contínua, densa. Toda peça que fugisse disso era empurrada de
+     volta para lá. A curadoria não estava cortando o ruim, estava
+     comprimindo o meio — era a etapa que mais ativamente produzia
+     a monotonia que ela deveria evitar.
+
+     Agora ela só REJEITA. A peça quebrada é descartada e o
+     gerador avança para sortear outra. A peça que apenas é
+     diferente do ideal antigo passa intacta.
+
+     E o critério mudou de natureza junto: não mede mais distância
+     de um ideal estético (largura, centralidade, continuidade,
+     densidade), mede QUEBRA — não há nada visível, o fade apagou
+     tudo, uma cavidade engoliu a peça, a geometria degenerou. Uma
+     peça íntima, esparsa e periférica é uma escolha legítima do
+     DNA, não um defeito a corrigir.
+  ========================================================= */
+
   const VERSION = "mp-art-v12.1";
+  const CURATION_VERSION = "v13";
+
+  // Abaixo disto a peça está quebrada, não apenas diferente.
+  const REJECTION_THRESHOLD = 45;
+
+  // Teto de tentativas. Determinístico: o mesmo token percorre a
+  // mesma sequência de candidatas e para na mesma.
+  const MAX_ATTEMPTS = 12;
+
   const baseApi = window.MPAdaptiveArt;
   const baseCreateProfile = baseApi.createProfile.bind(baseApi);
   const baseTuneQuality = baseApi.tuneQualityFromRuntime.bind(baseApi);
   const baseResetIdentity = baseApi.resetIdentity.bind(baseApi);
 
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-  const lerp = (a, b, amount) => a + (b - a) * amount;
 
-  function cloneGeometry(geometry) {
-    return {
-      ...geometry,
-      masses: [...geometry.masses],
-      massMeta: [...geometry.massMeta],
-      cavities: [...geometry.cavities],
-      cavityMeta: [...geometry.cavityMeta],
-      backgroundColor: [...geometry.backgroundColor],
-      lineColor: [...geometry.lineColor],
-      accentColor: [...geometry.accentColor]
-    };
+  const LIMITS = baseApi.LIMITS || { maxMasses: 14, maxCavities: 6 };
+
+  function channelLuminance(channel) {
+    const value = clamp(channel || 0, 0, 1);
+    return value <= 0.03928
+      ? value / 12.92
+      : Math.pow((value + 0.055) / 1.055, 2.4);
   }
 
-  function luminance(color) {
+  function relativeLuminance(color) {
     return (
-      (color?.[0] || 0) * 0.2126 +
-      (color?.[1] || 0) * 0.7152 +
-      (color?.[2] || 0) * 0.0722
+      0.2126 * channelLuminance(color?.[0]) +
+      0.7152 * channelLuminance(color?.[1]) +
+      0.0722 * channelLuminance(color?.[2])
     );
   }
 
-  function darkenToGap(color, background, minimumGap) {
-    const result = [...color];
-    const backgroundLum = luminance(background);
-    let guard = 0;
-
-    while (backgroundLum - luminance(result) < minimumGap && guard < 20) {
-      for (let i = 0; i < 3; i++) {
-        result[i] = clamp(result[i] * 0.91, 0, 1);
-      }
-      guard++;
-    }
-
-    return result;
+  function contrastRatio(a, b) {
+    const la = relativeLuminance(a);
+    const lb = relativeLuminance(b);
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
   }
 
   function activeMassCount(geometry) {
-    return clamp(Math.round(geometry.activeMasses || 6), 1, 6);
+    return clamp(Math.round(geometry.activeMasses || 6), 1, LIMITS.maxMasses);
   }
 
   function activeCavityCount(geometry) {
-    return clamp(Math.round(geometry.activeCavities || 0), 0, 3);
+    return clamp(Math.round(geometry.activeCavities || 0), 0, LIMITS.maxCavities);
+  }
+
+  function rotate(x, y, angle) {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    return [x * c - y * s, x * s + y * c];
   }
 
   function getExtent(geometry) {
@@ -80,331 +110,228 @@
     }
 
     return {
-      minX,
-      maxX,
-      minY,
-      maxY,
       width: maxX - minX,
-      height: maxY - minY,
-      centerX: (minX + maxX) * 0.5,
-      centerY: (minY + maxY) * 0.5
+      height: maxY - minY
     };
   }
 
-  function getCentroid(geometry) {
-    const count = activeMassCount(geometry);
-    let x = 0;
-    let y = 0;
-    let totalWeight = 0;
+  /* ---------------------------------------------------------
+     COBERTURA
 
-    for (let index = 0; index < count; index++) {
-      const offset = index * 4;
-      const rx = Math.max(0.025, geometry.masses[offset + 2]);
-      const ry = Math.max(0.025, geometry.masses[offset + 3]);
-      const weight = Math.max(0.02, rx * ry);
+     Em vez de inferir "presença" a partir de largura e
+     centralidade, amostra-se uma grade no mesmo espaço
+     normalizado que o shader usa e replica-se o que ele faz:
+     a máscara das massas, o recorte das cavidades e os dois
+     fades de enquadramento. O que sai é a fração da tela em que
+     realmente existe arte desenhada.
 
-      x += geometry.masses[offset] * weight;
-      y += geometry.masses[offset + 1] * weight;
-      totalWeight += weight;
+     É a única medida que importa para "está quebrada?", e é
+     indiferente ao estilo: uma peça íntima e uma transbordante
+     podem ter a mesma cobertura por caminhos diferentes.
+  --------------------------------------------------------- */
+  function coverage(geometry) {
+    const massCount = activeMassCount(geometry);
+    const cavityCount = activeCavityCount(geometry);
+    const globalAngle = geometry.globalAngle || 0;
+    const fadeStart = geometry.rightFadeStart ?? 0.86;
+    const fadeWidth = Math.max(0.02, geometry.fadeWidth ?? 0.76);
+    const fadeStrength = clamp(geometry.fadeStrength ?? 0.15, 0, 1);
+    const fadeDirection = geometry.fadeDirection || 1;
+    const verticalFade = geometry.verticalFade ?? 0.96;
+
+    const COLS = 41;
+    const ROWS = 23;
+    const ASPECT = 1.6;
+
+    let visible = 0;
+    let total = 0;
+
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const px = ((col + 0.5) / COLS - 0.5) * ASPECT;
+        const py = (row + 0.5) / ROWS - 0.5;
+
+        total++;
+
+        const [qx, qy] = rotate(px, py, globalAngle);
+
+        let nearest = Infinity;
+
+        for (let index = 0; index < massCount; index++) {
+          const offset = index * 4;
+          const dx = qx - geometry.masses[offset];
+          const dy = qy - geometry.masses[offset + 1];
+          const angle = geometry.massMeta[offset] || 0;
+          const [rxq, ryq] = rotate(dx, dy, angle);
+          const rx = Math.max(0.02, geometry.masses[offset + 2]);
+          const ry = Math.max(0.02, geometry.masses[offset + 3]);
+          const weight = Math.max(0.25, geometry.massMeta[offset + 2] || 1);
+          const distance =
+            Math.sqrt((rxq * rxq) / (rx * rx) + (ryq * ryq) / (ry * ry)) /
+            weight;
+
+          nearest = Math.min(nearest, distance);
+        }
+
+        // mesma janela de 0.78 a 1.32 do shapeMask do shader
+        let presence = 1 - clamp((nearest - 0.78) / 0.54, 0, 1);
+
+        for (let index = 0; index < cavityCount; index++) {
+          const offset = index * 4;
+          const dx = qx - geometry.cavities[offset];
+          const dy = qy - geometry.cavities[offset + 1];
+          const angle = geometry.cavityMeta[offset] || 0;
+          const [rxq, ryq] = rotate(dx, dy, angle);
+          const rx = Math.max(0.02, geometry.cavities[offset + 2]);
+          const ry = Math.max(0.02, geometry.cavities[offset + 3]);
+          const cutout = clamp(geometry.cavityMeta[offset + 3] || 0, 0, 1);
+          const distance = Math.sqrt(
+            (rxq * rxq) / (rx * rx) + (ryq * ryq) / (ry * ry)
+          );
+
+          presence *= 1 - cutout * Math.exp(-distance * distance * 2.4);
+        }
+
+        const horizontal =
+          1 -
+          clamp((qx * fadeDirection - fadeStart) / fadeWidth, 0, 1) *
+            fadeStrength;
+        const vertical =
+          1 - clamp((Math.abs(py) - verticalFade) / 0.18, 0, 1);
+
+        if (presence * horizontal * vertical > 0.10) {
+          visible++;
+        }
+      }
+    }
+
+    return visible / total;
+  }
+
+  /* ---------------------------------------------------------
+     DIAGNÓSTICO
+
+     100 é uma peça sã. Cada penalidade descreve uma forma
+     concreta de estar quebrada. Nada aqui pontua estilo: não há
+     prêmio por ser larga, centrada, contínua ou densa, porque foi
+     isso que comprimiu a população na V12.
+  --------------------------------------------------------- */
+  function diagnose(geometry, quality) {
+    const filled = coverage(geometry);
+    const extent = getExtent(geometry);
+    const lineContrast = contrastRatio(
+      geometry.lineColor,
+      geometry.backgroundColor
+    );
+
+    const faults = [];
+    let score = 100;
+
+    /* Os limiares abaixo são medidos, não estimados. Uma peça
+       deliberadamente íntima (duas massas pequenas, deslocadas para
+       a periferia, com vinheta fechada) cobre cerca de 5% da tela —
+       o que num monitor comum são dezenas de milhares de pixels de
+       contorno desenhado, ou seja, arte perfeitamente visível.
+
+       Na primeira versão deste arquivo o corte de "vazio" estava em
+       5% e essa peça era rejeitada: eu tinha reconstruído, com outro
+       nome, o mesmo viés da V12. Vazio de verdade é a peça cujas
+       massas não chegaram ao viewport, e aí a cobertura é ~0,000. */
+    if (filled < 0.006) {
+      score -= 70;
+      faults.push("vazio");
+    }
+    else if (filled < 0.02) {
+      score -= 20;
+      faults.push("tenue");
+    }
+
+    /* Não há penalidade por cobertura ALTA. Uma peça que preenche a
+       tela inteira não é um campo chapado: o que o shader desenha
+       são as linhas de contorno dentro da máscara, não um
+       preenchimento. Penalizar isso seria gosto, não quebra. */
+
+    // Geometria colapsada num ponto. A cobertura já pegaria o caso,
+    // mas aqui o diagnóstico sai com nome próprio.
+    if (extent.width < 0.03 && extent.height < 0.03) {
+      score -= 55;
+      faults.push("degenerado");
+    }
+
+    // Rede de segurança do piso de contraste, que a paleta já
+    // garante na origem. Se cair aqui, algo a montante regrediu.
+    if (lineContrast < 2.5) {
+      score -= 45;
+      faults.push("contraste");
+    }
+
+    // Densidade de linha tão baixa que não sobra desenho.
+    if ((quality?.fineLineDensity || 0) < 12) {
+      score -= 30;
+      faults.push("sem-linha");
     }
 
     return {
-      x: x / Math.max(0.001, totalWeight),
-      y: y / Math.max(0.001, totalWeight)
+      score: Math.round(clamp(score, 0, 100)),
+      coverage: Number(filled.toFixed(4)),
+      lineContrast: Number(lineContrast.toFixed(2)),
+      faults
     };
   }
 
-  function centerPresence(geometry) {
-    const count = activeMassCount(geometry);
-    let best = 0;
-
-    for (let index = 0; index < count; index++) {
-      const offset = index * 4;
-      const x = geometry.masses[offset];
-      const y = geometry.masses[offset + 1];
-      const rx = Math.max(0.05, geometry.masses[offset + 2]);
-      const ry = Math.max(0.05, geometry.masses[offset + 3]);
-      const distance = Math.sqrt((x * x) / (rx * rx) + (y * y) / (ry * ry));
-      best = Math.max(best, Math.exp(-distance * 0.72));
-    }
-
-    return best;
-  }
-
-  function continuityScore(geometry) {
-    const count = activeMassCount(geometry);
-    if (count <= 1) return 1;
-
-    let connected = 0;
-
-    for (let index = 0; index < count; index++) {
-      const a = index * 4;
-      const ax = geometry.masses[a];
-      const ay = geometry.masses[a + 1];
-      const arx = Math.max(0.05, geometry.masses[a + 2]);
-      const ary = Math.max(0.05, geometry.masses[a + 3]);
-      let nearest = Infinity;
-
-      for (let other = 0; other < count; other++) {
-        if (other === index) continue;
-        const b = other * 4;
-        const bx = geometry.masses[b];
-        const by = geometry.masses[b + 1];
-        const brx = Math.max(0.05, geometry.masses[b + 2]);
-        const bry = Math.max(0.05, geometry.masses[b + 3]);
-        const dx = (ax - bx) / Math.max(0.12, arx + brx);
-        const dy = (ay - by) / Math.max(0.10, ary + bry);
-        nearest = Math.min(nearest, Math.sqrt(dx * dx + dy * dy));
-      }
-
-      if (nearest <= 1.65) connected++;
-    }
-
-    return connected / count;
-  }
-
-  function centralCutoutRisk(geometry) {
-    const count = activeCavityCount(geometry);
-    let risk = 0;
-
-    for (let index = 0; index < count; index++) {
-      const offset = index * 4;
-      const x = geometry.cavities[offset];
-      const y = geometry.cavities[offset + 1];
-      const rx = Math.max(0.025, geometry.cavities[offset + 2]);
-      const ry = Math.max(0.025, geometry.cavities[offset + 3]);
-      const cutout = clamp(geometry.cavityMeta[offset + 3] || 0, 0, 1);
-      const distance = Math.sqrt(x * x + y * y);
-      const area = rx * ry;
-      const centrality = 1 - clamp(distance / 0.46, 0, 1);
-      risk = Math.max(risk, centrality * cutout * clamp(area / 0.055, 0, 1));
-    }
-
-    return risk;
-  }
-
+  // Mantido no nome antigo porque é API pública da camada.
   function scoreComposition(geometry, quality) {
-    const extent = getExtent(geometry);
-    const centroid = getCentroid(geometry);
-    const center = centerPresence(geometry);
-    const continuity = continuityScore(geometry);
-    const cavityRisk = centralCutoutRisk(geometry);
-    const bgLum = luminance(geometry.backgroundColor);
-    const lineGap = bgLum - luminance(geometry.lineColor);
-    const accentGap = bgLum - luminance(geometry.accentColor);
-
-    const widthScore = clamp((extent.width - 1.05) / 0.62, 0, 1);
-    const heightScore = clamp((extent.height - 0.68) / 0.28, 0, 1);
-    const centroidScore = 1 - clamp(
-      Math.sqrt((centroid.x / 0.48) ** 2 + (centroid.y / 0.30) ** 2),
-      0,
-      1
-    );
-    const contrastScore = (
-      clamp(lineGap / 0.18, 0, 1) * 0.45 +
-      clamp(accentGap / 0.28, 0, 1) * 0.55
-    );
-    const densityScore = clamp(((quality?.fineLineDensity || 0) - 18) / 18, 0, 1);
-
-    return Math.round(
-      100 * (
-        widthScore * 0.16 +
-        heightScore * 0.14 +
-        centroidScore * 0.12 +
-        center * 0.16 +
-        continuity * 0.17 +
-        contrastScore * 0.16 +
-        densityScore * 0.09
-      ) -
-      cavityRisk * 16
-    );
-  }
-
-  function recenter(geometry, strength) {
-    const centroid = getCentroid(geometry);
-    const count = activeMassCount(geometry);
-    const shiftX = clamp(centroid.x, -0.42, 0.42) * strength;
-    const shiftY = clamp(centroid.y, -0.28, 0.28) * strength;
-
-    for (let index = 0; index < count; index++) {
-      const offset = index * 4;
-      geometry.masses[offset] -= shiftX;
-      geometry.masses[offset + 1] -= shiftY;
-    }
-
-    const cavityCount = activeCavityCount(geometry);
-    for (let index = 0; index < cavityCount; index++) {
-      const offset = index * 4;
-      geometry.cavities[offset] -= shiftX;
-      geometry.cavities[offset + 1] -= shiftY;
-    }
-  }
-
-  function expandToViewport(geometry, targetWidth, targetHeight) {
-    const extent = getExtent(geometry);
-    const scaleX = clamp(targetWidth / Math.max(0.35, extent.width), 1, 1.42);
-    const scaleY = clamp(targetHeight / Math.max(0.28, extent.height), 1, 1.34);
-    const count = activeMassCount(geometry);
-
-    for (let index = 0; index < count; index++) {
-      const offset = index * 4;
-      geometry.masses[offset] *= scaleX;
-      geometry.masses[offset + 1] *= scaleY;
-      geometry.masses[offset + 2] *= Math.sqrt(scaleX);
-      geometry.masses[offset + 3] *= Math.sqrt(scaleY);
-    }
-
-    const cavityCount = activeCavityCount(geometry);
-    for (let index = 0; index < cavityCount; index++) {
-      const offset = index * 4;
-      geometry.cavities[offset] *= scaleX;
-      geometry.cavities[offset + 1] *= scaleY;
-      geometry.cavities[offset + 2] *= Math.sqrt(scaleX);
-      geometry.cavities[offset + 3] *= Math.sqrt(scaleY);
-    }
-  }
-
-  function ensureHeroMass(geometry, strength) {
-    const count = activeMassCount(geometry);
-    let bestIndex = 0;
-    let bestArea = -Infinity;
-
-    for (let index = 0; index < count; index++) {
-      const offset = index * 4;
-      const area = geometry.masses[offset + 2] * geometry.masses[offset + 3];
-      if (area > bestArea) {
-        bestArea = area;
-        bestIndex = index;
-      }
-    }
-
-    const offset = bestIndex * 4;
-    geometry.masses[offset] = lerp(geometry.masses[offset], 0, 0.34 * strength);
-    geometry.masses[offset + 1] = lerp(geometry.masses[offset + 1], 0, 0.42 * strength);
-    geometry.masses[offset + 2] = Math.max(geometry.masses[offset + 2], lerp(0.28, 0.38, strength));
-    geometry.masses[offset + 3] = Math.max(geometry.masses[offset + 3], lerp(0.16, 0.24, strength));
-    geometry.massMeta[offset + 2] = Math.max(geometry.massMeta[offset + 2] || 0.8, 0.92);
-
-    geometry.heroMass = bestIndex;
-    geometry.anchorX = geometry.masses[offset];
-    geometry.anchorY = geometry.masses[offset + 1];
-  }
-
-  function repairContinuity(geometry, strength) {
-    const count = activeMassCount(geometry);
-    const hero = clamp(geometry.heroMass || 0, 0, count - 1);
-    const heroOffset = hero * 4;
-    const hx = geometry.masses[heroOffset];
-    const hy = geometry.masses[heroOffset + 1];
-
-    for (let index = 0; index < count; index++) {
-      if (index === hero) continue;
-      const offset = index * 4;
-      const x = geometry.masses[offset];
-      const y = geometry.masses[offset + 1];
-      const distance = Math.sqrt((x - hx) ** 2 + (y - hy) ** 2);
-
-      if (distance > 0.74) {
-        const pull = clamp((distance - 0.72) / 0.75, 0, 1) * 0.30 * strength;
-        geometry.masses[offset] = lerp(x, hx, pull);
-        geometry.masses[offset + 1] = lerp(y, hy, pull);
-        geometry.masses[offset + 2] *= 1 + 0.14 * strength;
-        geometry.masses[offset + 3] *= 1 + 0.12 * strength;
-      }
-    }
-  }
-
-  function tameCavities(geometry, strength) {
-    const count = activeCavityCount(geometry);
-
-    for (let index = 0; index < count; index++) {
-      const offset = index * 4;
-      const distance = Math.sqrt(geometry.cavities[offset] ** 2 + geometry.cavities[offset + 1] ** 2);
-      const centrality = 1 - clamp(distance / 0.48, 0, 1);
-      const cutoutLimit = lerp(0.66, 0.42, centrality * strength);
-
-      geometry.cavityMeta[offset + 3] = Math.min(geometry.cavityMeta[offset + 3] || 0, cutoutLimit);
-
-      if (centrality > 0.5) {
-        geometry.cavities[offset + 2] *= lerp(1, 0.82, strength);
-        geometry.cavities[offset + 3] *= lerp(1, 0.84, strength);
-      }
-    }
-  }
-
-  function stabilizeStyle(geometry, quality, strength) {
-    geometry.lineColor = darkenToGap(
-      geometry.lineColor,
-      geometry.backgroundColor,
-      lerp(0.16, 0.21, strength)
-    );
-    geometry.accentColor = darkenToGap(
-      geometry.accentColor,
-      geometry.backgroundColor,
-      lerp(0.25, 0.31, strength)
-    );
-
-    geometry.fadeStrength = Math.min(geometry.fadeStrength ?? 0.15, 0.16);
-    geometry.rightFadeStart = Math.max(geometry.rightFadeStart || 0, 0.86);
-    geometry.fadeWidth = Math.max(geometry.fadeWidth || 0, 0.76);
-    geometry.verticalFade = Math.max(geometry.verticalFade || 0, 0.96);
-
-    geometry.asymmetry = Math.min(geometry.asymmetry ?? 0.5, lerp(0.90, 0.78, strength));
-    geometry.faultStrength = Math.min(geometry.faultStrength ?? 0.05, lerp(0.19, 0.145, strength));
-    geometry.warpA = Math.min(geometry.warpA ?? 0.06, lerp(0.17, 0.135, strength));
-    geometry.warpB = Math.min(geometry.warpB ?? 0.05, lerp(0.15, 0.12, strength));
-
-    if (strength >= 0.72 && (geometry.renderMode === 1 || geometry.renderMode === 4)) {
-      geometry.renderMode = 0;
-      geometry.renderModeFallback = "topographic";
-    }
-
-    quality.fineLineDensity = Math.max(quality.fineLineDensity || 0, 30);
-    quality.secondaryLineDensity = Math.max(quality.secondaryLineDensity || 0, 20);
-    quality.structuralDensity = Math.max(quality.structuralDensity || 0, 7);
-    quality.noiseWeight = clamp(quality.noiseWeight ?? 0.8, 0.42, 1.24);
-    quality.microDetail = clamp(quality.microDetail ?? 0.04, 0.018, 0.075);
-    quality.arcOpacity = clamp(quality.arcOpacity ?? 0.06, 0.012, 0.15);
+    return diagnose(geometry, quality).score;
   }
 
   function applyCuration(profile) {
     if (!profile?.geometry || !profile?.quality) return profile;
 
-    const geometry = cloneGeometry(profile.geometry);
-    const quality = { ...profile.quality };
-    const scoreBefore = scoreComposition(geometry, quality);
+    let best = profile;
+    let bestReport = diagnose(profile.geometry, profile.quality);
+    let attempts = 1;
+    const rejected = [];
 
-    let repairStrength = 0.18;
-    if (scoreBefore < 58) repairStrength = 1.0;
-    else if (scoreBefore < 70) repairStrength = 0.78;
-    else if (scoreBefore < 80) repairStrength = 0.48;
+    // Re-sorteia avançando o gerador. Como o xoshiro é compartilhado
+    // e tem estado, cada baseCreateProfile() devolve uma peça nova, e
+    // a sequência de tentativas é a mesma para o mesmo token.
+    while (bestReport.score < REJECTION_THRESHOLD && attempts < MAX_ATTEMPTS) {
+      rejected.push({
+        score: bestReport.score,
+        faults: bestReport.faults.slice()
+      });
 
-    recenter(geometry, lerp(0.24, 0.82, repairStrength));
-    expandToViewport(
-      geometry,
-      lerp(1.54, 1.72, repairStrength),
-      lerp(0.88, 1.00, repairStrength)
-    );
-    ensureHeroMass(geometry, repairStrength);
-    repairContinuity(geometry, repairStrength);
-    tameCavities(geometry, repairStrength);
-    stabilizeStyle(geometry, quality, repairStrength);
+      const candidate = baseCreateProfile();
 
-    const scoreAfter = scoreComposition(geometry, quality);
+      if (!candidate?.geometry || !candidate?.quality) break;
 
-    geometry.curation = {
-      version: "v12.1",
-      scoreBefore,
-      scoreAfter,
-      repaired: repairStrength >= 0.48,
-      repairStrength: Number(repairStrength.toFixed(2))
+      const report = diagnose(candidate.geometry, candidate.quality);
+      attempts++;
+
+      if (report.score > bestReport.score) {
+        best = candidate;
+        bestReport = report;
+      }
+    }
+
+    const geometry = {
+      ...best.geometry,
+      curation: {
+        version: CURATION_VERSION,
+        score: bestReport.score,
+        coverage: bestReport.coverage,
+        lineContrast: bestReport.lineContrast,
+        faults: bestReport.faults,
+        attempts,
+        rejected,
+        accepted: bestReport.score >= REJECTION_THRESHOLD
+      }
     };
 
     return {
-      ...profile,
+      ...best,
       version: VERSION,
-      geometry,
-      quality
+      geometry
     };
   }
 
@@ -414,16 +341,18 @@
 
   function tuneQualityFromRuntime(profile, fps) {
     const tuned = baseTuneQuality(profile, fps);
-    const curated = applyCuration(tuned);
 
+    // Ajuste de qualidade não re-sorteia a peça: a curadoria já
+    // decidiu, e re-rodar aqui trocaria a arte no meio da visita.
     if (profile?.geometry?.curation) {
       return {
-        ...curated,
+        ...tuned,
+        version: VERSION,
         geometry: profile.geometry
       };
     }
 
-    return curated;
+    return applyCuration(tuned);
   }
 
   window.MPAdaptiveArt = {
@@ -432,6 +361,9 @@
     createProfile,
     tuneQualityFromRuntime,
     resetIdentity: baseResetIdentity,
-    scoreComposition
+    scoreComposition,
+    diagnose,
+    coverage,
+    REJECTION_THRESHOLD
   };
 })();

@@ -17,7 +17,9 @@
       return;
     }
 
-    const profile = window.MPAdaptiveArt.createProfile();
+    const profile = window.MPAdaptiveArt.getProfile
+      ? window.MPAdaptiveArt.getProfile()
+      : window.MPAdaptiveArt.createProfile();
     const geometry = profile?.geometry || {};
 
     root.style.setProperty(
@@ -32,6 +34,10 @@
       "--page-accent",
       toCss(geometry.accentColor, "#21362c")
     );
+
+    // Mesma moldura derivada do perfil que a home usa, para as
+    // páginas internas não voltarem a ter posições constantes.
+    window.MPAdaptiveArt.applyPageTheme?.(profile);
 
     root.dataset.themeReady = "true";
 

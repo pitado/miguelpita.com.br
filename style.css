@@ -1,6 +1,42 @@
+/* Os valores abaixo são o FALLBACK: é exatamente o que a página
+   mostrava antes, e é o que ela mostra se o JS não rodar. Quando o
+   JS roda, applyPageTheme() reescreve cada um a partir do perfil,
+   então a moldura deixa de ser a mesma em todas as peças. */
 :root {
   --bg: #f6f3ee;
   --ink: #27282a;
+
+  /* brilhos de .stage */
+  --glow-a-x: 66%;
+  --glow-a-y: 28%;
+  --glow-a-size: 34%;
+  --glow-a-alpha: .22;
+  --glow-b-x: 28%;
+  --glow-b-y: 44%;
+  --glow-b-size: 30%;
+  --glow-b-alpha: .10;
+
+  /* brilhos de .soft-light */
+  --soft-a-x: 73%;
+  --soft-a-y: 29%;
+  --soft-a-size: 31%;
+  --soft-a-alpha: .20;
+  --soft-b-x: 31%;
+  --soft-b-y: 46%;
+  --soft-b-size: 26%;
+  --soft-b-alpha: .08;
+  --soft-blend: screen;
+
+  --grain-opacity: .014;
+
+  /* vidro do dock: vira escuro nos regimes de fundo escuro */
+  --glass-tint: 255,255,255;
+  --glass-border: rgba(255,255,255,.62);
+  --glass-top: rgba(255,255,255,.78);
+  --shortcut-ink: rgba(28,28,31,.72);
+  --shortcut-ink-hover: rgba(18,18,20,.94);
+  --signature-ink: rgba(35,35,38,.42);
+  --fallback-ink: #55565a;
 }
 
 * {
@@ -43,14 +79,14 @@ body {
 
   background:
     radial-gradient(
-      circle at 66% 28%,
-      rgba(255,255,255,.22),
-      transparent 34%
+      circle at var(--glow-a-x) var(--glow-a-y),
+      rgba(var(--glass-tint), var(--glow-a-alpha)),
+      transparent var(--glow-a-size)
     ),
     radial-gradient(
-      circle at 28% 44%,
-      rgba(255,255,255,.10),
-      transparent 30%
+      circle at var(--glow-b-x) var(--glow-b-y),
+      rgba(var(--glass-tint), var(--glow-b-alpha)),
+      transparent var(--glow-b-size)
     ),
     var(--bg);
 }
@@ -79,17 +115,17 @@ body {
 
   background:
     radial-gradient(
-      circle at 73% 29%,
-      rgba(255,255,255,.20),
-      transparent 31%
+      circle at var(--soft-a-x) var(--soft-a-y),
+      rgba(255,255,255, var(--soft-a-alpha)),
+      transparent var(--soft-a-size)
     ),
     radial-gradient(
-      circle at 31% 46%,
-      rgba(255,255,255,.08),
-      transparent 26%
+      circle at var(--soft-b-x) var(--soft-b-y),
+      rgba(255,255,255, var(--soft-b-alpha)),
+      transparent var(--soft-b-size)
     );
 
-  mix-blend-mode: screen;
+  mix-blend-mode: var(--soft-blend);
 }
 
 .grain {
@@ -97,7 +133,7 @@ body {
   inset: 0;
   z-index: 3;
   pointer-events: none;
-  opacity: .014;
+  opacity: var(--grain-opacity);
 
   background-image:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.52'/%3E%3C/svg%3E");
@@ -114,7 +150,7 @@ body {
 
   pointer-events: none;
 
-  color: rgba(35,35,38,.42);
+  color: var(--signature-ink);
   font-size: 8px;
   font-weight: 600;
   letter-spacing: .11em;
@@ -141,19 +177,19 @@ body {
 
   padding: 4px;
 
-  border: 1px solid rgba(255,255,255,.62);
+  border: 1px solid var(--glass-border);
   border-radius: 16px;
 
   background:
     linear-gradient(
       135deg,
-      rgba(255,255,255,.36),
-      rgba(255,255,255,.12)
+      rgba(var(--glass-tint),.36),
+      rgba(var(--glass-tint),.12)
     );
 
   box-shadow:
     0 10px 28px rgba(35,35,39,.06),
-    inset 0 1px 0 rgba(255,255,255,.78),
+    inset 0 1px 0 var(--glass-top),
     inset 0 -1px 0 rgba(100,100,104,.05);
 
   -webkit-backdrop-filter: blur(16px) saturate(118%);
@@ -195,14 +231,14 @@ body {
   border: 1px solid transparent;
   border-radius: 11px;
 
-  color: rgba(28,28,31,.72);
+  color: var(--shortcut-ink);
   text-decoration: none;
 
   font-size: 8.5px;
   font-weight: 600;
   letter-spacing: .12em;
 
-  background: rgba(255,255,255,.04);
+  background: rgba(var(--glass-tint),.04);
 
   overflow: hidden;
 
@@ -228,7 +264,7 @@ body {
 
   border-radius: 50%;
 
-  background: rgba(255,255,255,.58);
+  background: rgba(var(--glass-tint),.58);
   filter: blur(10px);
   opacity: .42;
 
@@ -240,18 +276,18 @@ body {
 .shortcut:hover {
   transform: translateY(-2px);
 
-  color: rgba(18,18,20,.94);
-  border-color: rgba(255,255,255,.64);
+  color: var(--shortcut-ink-hover);
+  border-color: var(--glass-border);
 
   background:
     linear-gradient(
       135deg,
-      rgba(255,255,255,.44),
-      rgba(255,255,255,.14)
+      rgba(var(--glass-tint),.44),
+      rgba(var(--glass-tint),.14)
     );
 
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.82),
+    inset 0 1px 0 var(--glass-top),
     0 6px 16px rgba(35,35,38,.05);
 }
 
@@ -279,7 +315,7 @@ body {
   padding: 24px;
 
   background: var(--bg);
-  color: #55565a;
+  color: var(--fallback-ink);
 
   font-size: 13px;
   text-align: center;
