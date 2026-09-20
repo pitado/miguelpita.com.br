@@ -57,14 +57,14 @@
   const ARCHETYPE_WEIGHTS = {
     density: [["esparso", 3], ["equilibrado", 4], ["denso", 3], ["saturado", 2]],
     order: [["ortogonal", 3], ["modular", 3], ["organico", 4], ["caotico", 3]],
-    balance: [["centrado", 4], ["descentrado", 4], ["periferico", 2]],
+    balance: [["centrado", 5], ["descentrado", 4], ["periferico", 1]],
     energy: [["calmo", 3], ["corrente", 4], ["turbulento", 3], ["violento", 2]],
     framing: [["sangrado", 3], ["janela", 3], ["vinheta", 3], ["lateral", 2]],
     scale: [["intimo", 2], ["medio", 4], ["amplo", 3], ["transbordante", 2]]
   };
 
   const DENSITY_RANGES = {
-    esparso: { masses: [2, 4], cavities: [0, 1], lines: [0.52, 0.74] },
+    esparso: { masses: [4, 6], cavities: [0, 1], lines: [0.64, 0.86] },
     equilibrado: { masses: [5, 7], cavities: [1, 3], lines: [0.84, 1.04] },
     denso: { masses: [8, 11], cavities: [2, 4], lines: [1.14, 1.36] },
     saturado: { masses: [12, 14], cavities: [4, 6], lines: [1.46, 1.72] }
@@ -130,21 +130,31 @@
       fadeStart: [0.64, 0.86], fadeWidth: [0.52, 0.78],
       fadeStrength: [0.15, 0.29], verticalFade: [0.80, 0.98]
     },
+    /* vinheta e lateral foram suavizadas: com a direcao de "sempre
+       preenchendo", um fade forte comecando em 0,24 apagava metade
+       da tela e recriava o vazio que saiu pela porta da frente.
+       Elas seguem existindo como enquadramento, agora como
+       tratamento de borda, nao como recorte da composicao. */
     vinheta: {
-      fadeStart: [0.24, 0.46], fadeWidth: [0.24, 0.50],
-      fadeStrength: [0.40, 0.64], verticalFade: [0.46, 0.66]
+      fadeStart: [0.46, 0.64], fadeWidth: [0.34, 0.58],
+      fadeStrength: [0.24, 0.42], verticalFade: [0.64, 0.80]
     },
     lateral: {
-      fadeStart: [0.32, 0.56], fadeWidth: [0.28, 0.58],
-      fadeStrength: [0.31, 0.52], verticalFade: [0.94, 1.20]
+      fadeStart: [0.48, 0.68], fadeWidth: [0.34, 0.62],
+      fadeStrength: [0.20, 0.38], verticalFade: [0.96, 1.20]
     }
   };
 
+  /* Direcao de arte: a peca SEMPRE ocupa a tela. O piso subiu de
+     0,70 para 1,06, entao o antigo "intimo" virou o menos expansivo
+     de uma familia que comeca cheia, nao a peca com respiro em
+     volta. As lacunas entre as faixas continuam, para os
+     agrupamentos nao virarem nuvem. */
   const SCALE_RANGES = {
-    intimo: [0.70, 0.93],
-    medio: [0.99, 1.24],
-    amplo: [1.30, 1.56],
-    transbordante: [1.62, 1.96]
+    intimo: [1.06, 1.26],
+    medio: [1.32, 1.54],
+    amplo: [1.60, 1.86],
+    transbordante: [1.92, 2.30]
   };
 
   const BALANCE_RANGES = {
@@ -405,25 +415,36 @@
      em vez de clarear todo mundo até o branco.
   ========================================================= */
 
+  /* Direcao de arte: SEMPRE colorido. O regime monocromatico saiu
+     e nenhum outro sorteia saturacao baixa. A variedade de cor
+     passa a morar no matiz, na relacao entre os tres tons e na
+     luminosidade do fundo, nao mais na opcao de nao ter cor. */
   const PALETTE_REGIMES = [
-    "claro-lavado",
+    "claro-pigmentado",
     "escuro-profundo",
     "alto-contraste",
-    "monocromatico",
+    "complementar",
     "duotonico",
     "saturado-quente",
     "saturado-frio"
   ];
 
   const PALETTE_WEIGHTS = [
-    ["claro-lavado", 3],
+    ["claro-pigmentado", 3],
     ["escuro-profundo", 3],
     ["alto-contraste", 2],
-    ["monocromatico", 2],
+    ["complementar", 3],
     ["duotonico", 3],
     ["saturado-quente", 2],
     ["saturado-frio", 2]
   ];
+
+  // Pisos de saturacao por papel. Nenhum regime desce daqui.
+  const SATURATION_FLOOR = {
+    background: 0.24,
+    line: 0.34,
+    accent: 0.58
+  };
 
   // Luminância relativa da WCAG (sRGB linearizado), não a média
   // ponderada ingênua que a curadoria usava antes.
@@ -487,73 +508,75 @@
       const spread = random.between(12, 34);
 
       return {
-        background: { h: hue, s: random.between(0.08, 0.35), l: random.between(0.05, 0.16) },
-        line: { h: hue + spread, s: random.between(0.10, 0.40), l: random.between(0.46, 0.66), dir: 1 },
-        accent: { h: hue - spread, s: random.between(0.28, 0.70), l: random.between(0.56, 0.80), dir: 1 }
+        background: { h: hue, s: random.between(0.30, 0.68), l: random.between(0.07, 0.19) },
+        line: { h: hue + spread, s: random.between(0.34, 0.72), l: random.between(0.46, 0.68), dir: 1 },
+        accent: { h: hue - spread, s: random.between(0.62, 0.94), l: random.between(0.54, 0.78), dir: 1 }
       };
     }
 
     if (regime === "alto-contraste") {
-      const darkBase = random.chance(0.42);
-      const accentHue = hue + random.between(120, 240);
+      const darkBase = random.chance(0.45);
+      const accentHue = hue + random.between(130, 230);
 
       return {
         background: darkBase
-          ? { h: hue, s: random.between(0, 0.06), l: random.between(0.03, 0.10) }
-          : { h: hue, s: random.between(0, 0.05), l: random.between(0.94, 0.99) },
+          ? { h: hue, s: random.between(0.34, 0.66), l: random.between(0.08, 0.16) }
+          : { h: hue, s: random.between(0.26, 0.52), l: random.between(0.84, 0.93) },
         line: darkBase
-          ? { h: hue, s: random.between(0, 0.10), l: random.between(0.82, 0.96), dir: 1 }
-          : { h: hue, s: random.between(0, 0.12), l: random.between(0.04, 0.18), dir: -1 },
+          ? { h: hue + random.between(-18, 18), s: random.between(0.38, 0.70), l: random.between(0.74, 0.90), dir: 1 }
+          : { h: hue + random.between(-18, 18), s: random.between(0.48, 0.82), l: random.between(0.14, 0.28), dir: -1 },
         accent: {
           h: accentHue,
-          s: random.between(0.70, 0.95),
-          l: random.between(0.38, 0.58),
+          s: random.between(0.74, 0.96),
+          l: random.between(0.40, 0.60),
           dir: darkBase ? 1 : -1
         }
       };
     }
 
-    if (regime === "monocromatico") {
-      const darkBase = random.chance(0.40);
-      const saturation = random.between(0, 0.045);
+    // Substitui o monocromatico: mesma ideia de conjunto restrito,
+    // mas com matizes opostos em vez de ausencia de cor.
+    if (regime === "complementar") {
+      const opposite = hue + random.between(150, 210);
+      const darkBase = random.chance(0.45);
 
       return {
         background: darkBase
-          ? { h: hue, s: saturation, l: random.between(0.06, 0.18) }
-          : { h: hue, s: saturation, l: random.between(0.86, 0.97) },
+          ? { h: hue, s: random.between(0.34, 0.70), l: random.between(0.10, 0.22) }
+          : { h: hue, s: random.between(0.24, 0.48), l: random.between(0.80, 0.91) },
         line: {
-          h: hue,
-          s: saturation,
-          l: darkBase ? random.between(0.48, 0.70) : random.between(0.26, 0.48),
+          h: hue + random.between(-14, 14),
+          s: random.between(0.40, 0.76),
+          l: darkBase ? random.between(0.58, 0.78) : random.between(0.26, 0.44),
           dir: darkBase ? 1 : -1
         },
         accent: {
-          h: hue,
-          s: saturation,
-          l: darkBase ? random.between(0.68, 0.90) : random.between(0.08, 0.28),
+          h: opposite,
+          s: random.between(0.70, 0.96),
+          l: random.between(0.44, 0.66),
           dir: darkBase ? 1 : -1
         }
       };
     }
 
     if (regime === "duotonico") {
-      const other = hue + random.between(110, 250);
+      const other = hue + random.between(100, 250);
       const darkBase = random.chance(0.45);
 
       return {
         background: darkBase
-          ? { h: hue, s: random.between(0.14, 0.40), l: random.between(0.16, 0.30) }
-          : { h: hue, s: random.between(0.10, 0.30), l: random.between(0.74, 0.90) },
+          ? { h: hue, s: random.between(0.32, 0.64), l: random.between(0.14, 0.28) }
+          : { h: hue, s: random.between(0.26, 0.52), l: random.between(0.78, 0.90) },
         line: {
           h: hue,
-          s: random.between(0.20, 0.55),
-          l: darkBase ? random.between(0.62, 0.84) : random.between(0.24, 0.44),
+          s: random.between(0.38, 0.74),
+          l: darkBase ? random.between(0.60, 0.82) : random.between(0.24, 0.44),
           dir: darkBase ? 1 : -1
         },
         accent: {
           h: other,
-          s: random.between(0.45, 0.85),
-          l: random.between(0.40, 0.70),
+          s: random.between(0.66, 0.94),
+          l: random.between(0.42, 0.68),
           dir: darkBase ? 1 : -1
         }
       };
@@ -562,45 +585,51 @@
     if (regime === "saturado-quente" || regime === "saturado-frio") {
       const warm = regime === "saturado-quente";
       const baseHue = warm
-        ? random.between(10, 58)
-        : random.between(184, 268);
+        ? random.between(8, 60)
+        : random.between(180, 272);
       const spread = random.between(14, 46);
       const darkBase = random.chance(0.45);
 
       return {
         background: darkBase
-          ? { h: baseHue, s: random.between(0.22, 0.52), l: random.between(0.09, 0.21) }
-          : { h: baseHue, s: random.between(0.12, 0.34), l: random.between(0.83, 0.94) },
+          ? { h: baseHue, s: random.between(0.40, 0.74), l: random.between(0.10, 0.22) }
+          : { h: baseHue, s: random.between(0.30, 0.58), l: random.between(0.79, 0.90) },
         line: {
           h: baseHue + spread,
-          s: random.between(0.30, 0.68),
-          l: darkBase ? random.between(0.54, 0.74) : random.between(0.28, 0.46),
+          s: random.between(0.44, 0.80),
+          l: darkBase ? random.between(0.56, 0.76) : random.between(0.26, 0.44),
           dir: darkBase ? 1 : -1
         },
         accent: {
           h: baseHue - spread,
-          s: random.between(0.62, 0.92),
-          l: random.between(0.42, 0.68),
+          s: random.between(0.72, 0.96),
+          l: random.between(0.44, 0.68),
           dir: darkBase ? 1 : -1
         }
       };
     }
 
-    // claro-lavado: o caráter minimalista original, agora como uma
-    // opção entre sete, não como a única saída possível.
-    const spread = random.between(10, 30);
-    const saturation = random.between(0.06, 0.34);
+    // claro-pigmentado: o claro do site antigo, mas com pigmento de
+    // verdade. O fundo desceu de 0,88-0,965 para 0,78-0,90: acima
+    // disso o matiz simplesmente nao aparece.
+    const spread = random.between(12, 34);
 
     return {
-      background: { h: hue, s: saturation * 0.55, l: random.between(0.88, 0.965) },
-      line: { h: hue + spread, s: clamp(saturation + 0.10, 0, 0.70), l: random.between(0.30, 0.50), dir: -1 },
-      accent: { h: hue - spread, s: clamp(saturation + 0.24, 0, 0.86), l: random.between(0.14, 0.32), dir: -1 }
+      background: { h: hue, s: random.between(0.26, 0.50), l: random.between(0.78, 0.90) },
+      line: { h: hue + spread, s: random.between(0.40, 0.76), l: random.between(0.28, 0.46), dir: -1 },
+      accent: { h: hue - spread, s: random.between(0.66, 0.94), l: random.between(0.34, 0.56), dir: -1 }
     };
   }
 
   function buildPalette(random) {
     const regime = random.weighted(PALETTE_WEIGHTS);
     const tones = buildRegimeTones(regime, random);
+
+    // Rede de seguranca do "sempre colorido": nenhum papel passa
+    // abaixo do piso, mesmo que um regime futuro esqueca disso.
+    tones.background.s = Math.max(tones.background.s, SATURATION_FLOOR.background);
+    tones.line.s = Math.max(tones.line.s, SATURATION_FLOOR.line);
+    tones.accent.s = Math.max(tones.accent.s, SATURATION_FLOOR.accent);
 
     const backgroundColor = hslToRgb(
       tones.background.h,
@@ -1346,6 +1375,16 @@
       flowDirection: random.sign(),
       faultAngle: random.between(-1.55, 1.55),
       faultOffset: random.between(-0.22, 0.22),
+      // Alcance do campo alem do nucleo. Piso alto: toda peca leva
+      // o desenho ate as bordas, variando o quanto.
+      fieldReach: random.between(3.0, 5.6),
+      fieldFill: random.between(0.34, 0.56),
+
+      // Piso que nunca zera: garante textura ate os cantos mesmo
+      // quando a composicao e pequena e deslocada. E o que faz o
+      // "sempre preenchendo" valer para a cauda, nao so na mediana.
+      fieldFloor: random.between(0.13, 0.22),
+
       rightFadeStart: fadeStart,
       fadeWidth,
       fadeStrength,

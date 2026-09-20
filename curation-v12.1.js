@@ -125,6 +125,10 @@
      fades de enquadramento. O que sai é a fração da tela em que
      realmente existe arte desenhada.
 
+     Mede o NUCLEO da composicao, de proposito: o campo
+     estendido (u_fieldFloor) desenha textura na tela toda, e
+     incluir isso aqui faria toda peca medir cobertura ~1.
+
      É a única medida que importa para "está quebrada?", e é
      indiferente ao estilo: uma peça íntima e uma transbordante
      podem ter a mesma cobertura por caminhos diferentes.
@@ -241,9 +245,20 @@
       score -= 70;
       faults.push("vazio");
     }
-    else if (filled < 0.02) {
-      score -= 20;
-      faults.push("tenue");
+    else if (filled < 0.15) {
+      /* DIRECAO DE ARTE, nao defeito tecnico.
+
+         O piso acima e o unico criterio aqui que julga forma em vez
+         de quebra, e ele existe a pedido explicito do dono da obra:
+         as formas devem pegar a tela. Sem ele, o campo estendido
+         preenche o fundo de textura e uma composicao minuscula num
+         canto passa como se estivesse cheia.
+
+         Custo assumido: peças de composicao muito pequena somem da
+         populacao, o que reduz a variedade de escala. E uma troca
+         consciente, e o teste de variedade cobre o que sobrou. */
+      score -= 60;
+      faults.push("sem-composicao");
     }
 
     /* Não há penalidade por cobertura ALTA. Uma peça que preenche a

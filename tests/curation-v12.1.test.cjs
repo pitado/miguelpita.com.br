@@ -80,30 +80,39 @@ function healthyGeometry() {
   };
 }
 
-// Peça sã mas NADA convencional: duas massas pequenas, deslocadas
-// para a periferia, com vinheta fechada. A V12 dava nota baixa nisto
-// e "consertava" até virar a peça larga e centrada de sempre. É o
-// caso que define se a curadoria corta a cauda ou comprime o meio.
+// Peça sã mas NADA convencional: poucas massas, deslocadas para um
+// canto, sem cavidade, com enquadramento apertado. A V12 dava nota
+// baixa nisto e "consertava" até virar a peça larga e centrada de
+// sempre. É o caso que define se a curadoria corta a cauda ou
+// comprime o meio, e ela precisa passar intacta.
+//
+// As massas são maiores do que numa primeira versão deste fixture
+// porque a direção de arte mudou: com "sempre preenchendo a tela",
+// uma composição minúscula passou a ser rejeitada de propósito. O
+// que o teste protege continua sendo o mesmo — excentricidade não é
+// defeito —, só que dentro do piso de composição que passou a valer.
 function intimateGeometry() {
   return {
     ...healthyGeometry(),
     grammar: "technical",
-    activeMasses: 2,
+    activeMasses: 3,
     activeCavities: 0,
     masses: [
-      -0.46, 0.22, 0.13, 0.09,
-      -0.30, 0.31, 0.10, 0.07
+      -0.44, 0.16, 0.30, 0.21,
+      -0.16, 0.28, 0.26, 0.18,
+      -0.52, -0.10, 0.22, 0.16
     ],
     massMeta: [
       0, 0, 1, 0,
-      0, 0, 0.9, 1
+      0, 0, 0.9, 1,
+      0, 0, 0.9, 2
     ],
     cavities: [5, 5, 0.02, 0.02],
     cavityMeta: [0, 0, 0, 0],
-    rightFadeStart: 0.34,
-    fadeWidth: 0.30,
-    fadeStrength: 0.52,
-    verticalFade: 0.52
+    rightFadeStart: 0.52,
+    fadeWidth: 0.38,
+    fadeStrength: 0.38,
+    verticalFade: 0.70
   };
 }
 
@@ -275,8 +284,10 @@ test("coverage measures drawn area, not width or centrality", () => {
   assert.ok(api.coverage(healthyGeometry()) > 0.20);
 
   // A peça íntima cobre pouca tela, mas cobre — e isso basta.
+  // Cobre menos tela que a peça convencional, mas acima do piso de
+  // composição que a direção de arte passou a exigir.
   const intimate = api.coverage(intimateGeometry());
-  assert.ok(intimate > 0.02 && intimate < 0.45, `cobertura: ${intimate}`);
+  assert.ok(intimate >= 0.15 && intimate < 0.55, `cobertura: ${intimate}`);
 });
 
 test("runtime tuning keeps the curated geometry", () => {

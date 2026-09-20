@@ -121,9 +121,15 @@ function rgbToHsl(color) {
   const l = (max + min) / 2;
   const delta = max - min;
 
-  if (delta === 0) return { s: 0, l };
+  if (delta === 0) return { h: 0, s: 0, l };
+
+  let h;
+  if (max === r) h = ((g - b) / delta + (g < b ? 6 : 0)) / 6;
+  else if (max === g) h = ((b - r) / delta + 2) / 6;
+  else h = ((r - g) / delta + 4) / 6;
 
   return {
+    h: h * 360,
     s: l > 0.5 ? delta / (2 - max - min) : delta / (max + min),
     l
   };
@@ -133,14 +139,11 @@ function rgbToHsl(color) {
 // para a distância entre pares.
 const CONTINUOUS = {
   bgL: [0, 1],
-  bgS: [0, 1],
   lineL: [0, 1],
-  lineS: [0, 1],
   accentL: [0, 1],
-  accentS: [0, 1],
   activeMasses: [2, 14],
   activeCavities: [0, 6],
-  presenceScale: [0.70, 1.96],
+  presenceScale: [1.04, 2.32],
   rightFadeStart: [0.22, 1.20],
   fadeWidth: [0.20, 1.12],
   fadeStrength: [0, 0.70],
@@ -151,6 +154,15 @@ const CONTINUOUS = {
   animationSpeed: [0.30, 2.0],
   fineLineDensity: [12, 96]
 };
+
+/* As três saturações saíram do teste de CV e ganharam teste próprio
+   logo abaixo. Motivo: a direção de arte passou a ser "sempre
+   colorido", o que prende a saturação numa faixa alta de propósito —
+   e faixa estreita derruba o coeficiente de variação por construção
+   (accentS media CV 0,133). Cobrar CV ali passaria a punir
+   exatamente o que foi pedido. O que elas precisam garantir agora é
+   um PISO, não dispersão, e é isso que o teste novo cobra. */
+const SATURATIONS = ["bgS", "lineS", "accentS"];
 
 const DISCRETE = [
   "paletteRegime",
@@ -193,6 +205,8 @@ function featuresOf(profile) {
     activeMasses: geometry.activeMasses,
     activeCavities: geometry.activeCavities,
     presenceScale: geometry.presenceScale,
+    coverage: geometry.curation?.coverage ?? 1,
+    bgH: background.h,
     rightFadeStart: geometry.rightFadeStart,
     fadeWidth: geometry.fadeWidth,
     fadeStrength: geometry.fadeStrength,
@@ -344,6 +358,32 @@ test("few pairs of pieces land close enough to read as the same artwork", () => 
       `(limite ${(MAX_CLOSE_RATIO * 100).toFixed(0)}%); ` +
       `par mais próximo: ${closestPair} a ${closest.toFixed(3)}`
   );
+});
+
+test("the art direction holds for every piece in the population", () => {
+  // Sempre colorido: nenhum dos três tons vira cinza.
+  let weakest = 1;
+  for (const row of population) {
+    for (const key of SATURATIONS) weakest = Math.min(weakest, row[key]);
+  }
+  assert.ok(weakest >= 0.20, `peça sem cor: saturação ${weakest.toFixed(3)}`);
+
+  // Mas a cor não pode ter virado uma cor só: o matiz do fundo
+  // precisa percorrer o círculo inteiro.
+  const sectors = new Set(population.map(row => Math.floor(row.bgH / 30)));
+  assert.equal(sectors.size, 12, `setores de matiz cobertos: ${sectors.size}/12`);
+
+  // E a saturação, mesmo com piso, precisa variar de verdade.
+  for (const key of SATURATIONS) {
+    const values = population.map(row => row[key]);
+    const span = Math.max(...values) - Math.min(...values);
+    assert.ok(span >= 0.25, `${key} quase fixo: amplitude ${span.toFixed(3)}`);
+  }
+
+  // Sempre preenchendo: toda peça tem composição de fato na tela,
+  // não apenas o campo de textura ao fundo.
+  const worst = Math.min(...population.map(row => row.coverage));
+  assert.ok(worst >= 0.15, `peça sem forma na tela: cobertura ${worst.toFixed(3)}`);
 });
 
 test("the same seed still produces the same piece", () => {

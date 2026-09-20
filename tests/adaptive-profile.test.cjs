@@ -390,11 +390,21 @@ function hslLightness(color) {
   return (Math.max(...color) + Math.min(...color)) / 2;
 }
 
+function hslSaturation(color) {
+  const max = Math.max(...color);
+  const min = Math.min(...color);
+  const l = (max + min) / 2;
+  const d = max - min;
+  if (d === 0) return 0;
+  return l > 0.5 ? d / (2 - max - min) : d / (max + min);
+}
+
 test("every palette regime guarantees WCAG contrast on its own terms", () => {
   const environment = createEnvironment();
   const regimes = new Set();
   let darkBackgrounds = 0;
   let visibleAccents = 0;
+  let weakestSaturation = 1;
 
   for (let seed = 1; seed <= 600; seed++) {
     const geometry = profileForSeed(environment, seed).geometry;
@@ -408,6 +418,15 @@ test("every palette regime guarantees WCAG contrast on its own terms", () => {
       `contraste insuficiente em ${geometry.paletteRegime}`
     );
     assert.ok(contrastRatio(geometry.accentColor, background) >= 1.79);
+
+    // Direção de arte: sempre colorido. Nenhum dos três tons pode
+    // cair para cinza, em nenhum regime.
+    weakestSaturation = Math.min(
+      weakestSaturation,
+      hslSaturation(background),
+      hslSaturation(geometry.lineColor),
+      hslSaturation(geometry.accentColor)
+    );
 
     if (relativeLuminance(background) < 0.22) {
       darkBackgrounds++;
@@ -423,10 +442,10 @@ test("every palette regime guarantees WCAG contrast on its own terms", () => {
     [...regimes].sort(),
     [
       "alto-contraste",
-      "claro-lavado",
+      "claro-pigmentado",
+      "complementar",
       "duotonico",
       "escuro-profundo",
-      "monocromatico",
       "saturado-frio",
       "saturado-quente"
     ]
@@ -443,6 +462,11 @@ test("every palette regime guarantees WCAG contrast on its own terms", () => {
   assert.ok(
     visibleAccents >= 120,
     `accents visíveis de menos: ${visibleAccents}/600`
+  );
+
+  assert.ok(
+    weakestSaturation >= 0.20,
+    `peça sem cor na população: saturação mínima ${weakestSaturation.toFixed(3)}`
   );
 });
 
