@@ -356,6 +356,12 @@
 
     uniform float u_verticalFade;
 
+    uniform float u_fieldReach;
+
+    uniform float u_fieldFill;
+
+    uniform float u_fieldFloor;
+
 
     uniform float u_breathing;
 
@@ -1530,7 +1536,35 @@
         );
 
 
-      float mask =
+      /* CAMPO ESTENDIDO
+         shapeMask zera em combined > 1.32, e era por isso que
+         sobrava tela vazia em volta da composicao. Este termo
+         continua o campo de contorno ate as bordas, com forca
+         menor: o nucleo segue denso e a tela inteira ganha
+         textura em vez de fundo chapado. */
+      float farField =
+
+        mix(
+
+          u_fieldFloor,
+
+          u_fieldFill,
+
+          1.0 -
+          smoothstep(
+            1.15,
+            u_fieldReach,
+            combined
+          )
+
+        );
+
+
+      /* O campo estendido carrega apenas os contornos estruturais.
+         As linhas finas continuam presas ao nucleo: longe dele o
+         lineField cresce muito e o fract() do contour() alias em
+         chuvisco, que foi o artefato da primeira tentativa. */
+      float coreMask =
 
         max(
 
@@ -1538,6 +1572,17 @@
 
           presenceMask *
           0.52
+
+        );
+
+
+      float mask =
+
+        max(
+
+          coreMask,
+
+          farField
 
         )
 
@@ -1803,6 +1848,21 @@
         );
 
 
+      float fineMask =
+
+        min(
+
+          mask,
+
+          max(
+            coreMask,
+            farField *
+            0.20
+          )
+
+        );
+
+
       float fineLines =
 
         (
@@ -1824,7 +1884,7 @@
 
         *
 
-        mask;
+        fineMask;
 
 
       float structural =
@@ -2909,6 +2969,21 @@
     gl.uniform1f(
       uniforms.u_verticalFade,
       DNA.verticalFade
+    );
+
+    gl.uniform1f(
+      uniforms.u_fieldReach,
+      DNA.fieldReach ?? 3.2
+    );
+
+    gl.uniform1f(
+      uniforms.u_fieldFill,
+      DNA.fieldFill ?? 0.34
+    );
+
+    gl.uniform1f(
+      uniforms.u_fieldFloor,
+      DNA.fieldFloor ?? 0.16
     );
 
 

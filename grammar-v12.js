@@ -362,13 +362,16 @@
       geometry.masses[offset + 3] *= index % 2 === 0 ? 0.88 : 1.15;
     });
 
+    // A dessaturacao caiu de 0,20/0,12 para 0,06/0,03: a gramatica
+    // technical segue a mais sobria das seis, mas "sobria" nao pode
+    // mais significar cinza.
     geometry.lineColor = desaturate(
       deepen(geometry.lineColor, geometry.backgroundColor, 0.12),
-      0.20
+      0.06
     );
     geometry.accentColor = desaturate(
       deepen(geometry.accentColor, geometry.backgroundColor, 0.14),
-      0.12
+      0.03
     );
   }
 
