@@ -439,11 +439,18 @@
     ["saturado-frio", 2]
   ];
 
-  // Pisos de saturacao por papel. Nenhum regime desce daqui.
+  /* Pisos de saturacao por papel. Nenhum regime desce daqui.
+
+     Subiram de 0,24/0,34/0,58 para 0,46/0,52/0,74. Mas piso de
+     saturacao sozinho nao da cor forte: saturacao 0,50 num fundo
+     com 0,88 de luz e pastel por construcao, porque sobra pouco
+     espaco entre a cor e o branco. Por isso a faixa de LUZ dos
+     fundos claros desceu junto, de 0,78-0,90 para 0,60-0,78 —
+     fundo colorido de verdade, nao tingido. */
   const SATURATION_FLOOR = {
-    background: 0.24,
-    line: 0.34,
-    accent: 0.58
+    background: 0.46,
+    line: 0.52,
+    accent: 0.74
   };
 
   // Luminância relativa da WCAG (sRGB linearizado), não a média
@@ -508,9 +515,9 @@
       const spread = random.between(12, 34);
 
       return {
-        background: { h: hue, s: random.between(0.30, 0.68), l: random.between(0.07, 0.19) },
-        line: { h: hue + spread, s: random.between(0.34, 0.72), l: random.between(0.46, 0.68), dir: 1 },
-        accent: { h: hue - spread, s: random.between(0.62, 0.94), l: random.between(0.54, 0.78), dir: 1 }
+        background: { h: hue, s: random.between(0.58, 0.92), l: random.between(0.08, 0.20) },
+        line: { h: hue + spread, s: random.between(0.56, 0.90), l: random.between(0.48, 0.68), dir: 1 },
+        accent: { h: hue - spread, s: random.between(0.78, 1.0), l: random.between(0.54, 0.74), dir: 1 }
       };
     }
 
@@ -520,40 +527,38 @@
 
       return {
         background: darkBase
-          ? { h: hue, s: random.between(0.34, 0.66), l: random.between(0.08, 0.16) }
-          : { h: hue, s: random.between(0.26, 0.52), l: random.between(0.84, 0.93) },
+          ? { h: hue, s: random.between(0.60, 0.95), l: random.between(0.09, 0.18) }
+          : { h: hue, s: random.between(0.62, 0.95), l: random.between(0.60, 0.74) },
         line: darkBase
-          ? { h: hue + random.between(-18, 18), s: random.between(0.38, 0.70), l: random.between(0.74, 0.90), dir: 1 }
-          : { h: hue + random.between(-18, 18), s: random.between(0.48, 0.82), l: random.between(0.14, 0.28), dir: -1 },
+          ? { h: hue + random.between(-16, 16), s: random.between(0.55, 0.88), l: random.between(0.72, 0.88), dir: 1 }
+          : { h: hue + random.between(-16, 16), s: random.between(0.70, 0.98), l: random.between(0.14, 0.26), dir: -1 },
         accent: {
           h: accentHue,
-          s: random.between(0.74, 0.96),
-          l: random.between(0.40, 0.60),
+          s: random.between(0.84, 1.0),
+          l: random.between(0.42, 0.60),
           dir: darkBase ? 1 : -1
         }
       };
     }
 
-    // Substitui o monocromatico: mesma ideia de conjunto restrito,
-    // mas com matizes opostos em vez de ausencia de cor.
     if (regime === "complementar") {
       const opposite = hue + random.between(150, 210);
       const darkBase = random.chance(0.45);
 
       return {
         background: darkBase
-          ? { h: hue, s: random.between(0.34, 0.70), l: random.between(0.10, 0.22) }
-          : { h: hue, s: random.between(0.24, 0.48), l: random.between(0.80, 0.91) },
+          ? { h: hue, s: random.between(0.58, 0.92), l: random.between(0.11, 0.23) }
+          : { h: hue, s: random.between(0.56, 0.88), l: random.between(0.62, 0.76) },
         line: {
-          h: hue + random.between(-14, 14),
-          s: random.between(0.40, 0.76),
-          l: darkBase ? random.between(0.58, 0.78) : random.between(0.26, 0.44),
+          h: hue + random.between(-12, 12),
+          s: random.between(0.58, 0.92),
+          l: darkBase ? random.between(0.58, 0.76) : random.between(0.18, 0.34),
           dir: darkBase ? 1 : -1
         },
         accent: {
           h: opposite,
-          s: random.between(0.70, 0.96),
-          l: random.between(0.44, 0.66),
+          s: random.between(0.84, 1.0),
+          l: random.between(0.44, 0.64),
           dir: darkBase ? 1 : -1
         }
       };
@@ -565,18 +570,18 @@
 
       return {
         background: darkBase
-          ? { h: hue, s: random.between(0.32, 0.64), l: random.between(0.14, 0.28) }
-          : { h: hue, s: random.between(0.26, 0.52), l: random.between(0.78, 0.90) },
+          ? { h: hue, s: random.between(0.56, 0.90), l: random.between(0.13, 0.26) }
+          : { h: hue, s: random.between(0.54, 0.86), l: random.between(0.61, 0.76) },
         line: {
           h: hue,
-          s: random.between(0.38, 0.74),
-          l: darkBase ? random.between(0.60, 0.82) : random.between(0.24, 0.44),
+          s: random.between(0.56, 0.90),
+          l: darkBase ? random.between(0.58, 0.78) : random.between(0.17, 0.33),
           dir: darkBase ? 1 : -1
         },
         accent: {
           h: other,
-          s: random.between(0.66, 0.94),
-          l: random.between(0.42, 0.68),
+          s: random.between(0.82, 1.0),
+          l: random.between(0.44, 0.66),
           dir: darkBase ? 1 : -1
         }
       };
@@ -592,32 +597,32 @@
 
       return {
         background: darkBase
-          ? { h: baseHue, s: random.between(0.40, 0.74), l: random.between(0.10, 0.22) }
-          : { h: baseHue, s: random.between(0.30, 0.58), l: random.between(0.79, 0.90) },
+          ? { h: baseHue, s: random.between(0.64, 0.96), l: random.between(0.10, 0.22) }
+          : { h: baseHue, s: random.between(0.62, 0.94), l: random.between(0.60, 0.76) },
         line: {
           h: baseHue + spread,
-          s: random.between(0.44, 0.80),
-          l: darkBase ? random.between(0.56, 0.76) : random.between(0.26, 0.44),
+          s: random.between(0.62, 0.94),
+          l: darkBase ? random.between(0.56, 0.74) : random.between(0.17, 0.32),
           dir: darkBase ? 1 : -1
         },
         accent: {
           h: baseHue - spread,
-          s: random.between(0.72, 0.96),
-          l: random.between(0.44, 0.68),
+          s: random.between(0.86, 1.0),
+          l: random.between(0.44, 0.64),
           dir: darkBase ? 1 : -1
         }
       };
     }
 
-    // claro-pigmentado: o claro do site antigo, mas com pigmento de
-    // verdade. O fundo desceu de 0,88-0,965 para 0,78-0,90: acima
-    // disso o matiz simplesmente nao aparece.
+    // claro-pigmentado: o fundo claro do site, agora com pigmento de
+    // verdade. A luz desceu de 0,78-0,90 para 0,60-0,78: acima disso
+    // nao existe cor forte, so tinta diluida em branco.
     const spread = random.between(12, 34);
 
     return {
-      background: { h: hue, s: random.between(0.26, 0.50), l: random.between(0.78, 0.90) },
-      line: { h: hue + spread, s: random.between(0.40, 0.76), l: random.between(0.28, 0.46), dir: -1 },
-      accent: { h: hue - spread, s: random.between(0.66, 0.94), l: random.between(0.34, 0.56), dir: -1 }
+      background: { h: hue, s: random.between(0.56, 0.90), l: random.between(0.60, 0.78) },
+      line: { h: hue + spread, s: random.between(0.60, 0.92), l: random.between(0.18, 0.34), dir: -1 },
+      accent: { h: hue - spread, s: random.between(0.84, 1.0), l: random.between(0.30, 0.50), dir: -1 }
     };
   }
 
@@ -1650,6 +1655,7 @@
     createRandom,
     applyPageTheme,
     LIMITS,
+    SATURATION_FLOOR,
     currentIdentity,
     seedKey: () => currentIdentity().seedKey
   };
