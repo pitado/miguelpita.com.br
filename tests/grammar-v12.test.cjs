@@ -254,10 +254,10 @@ test("WebGL1 geometry arrays remain fixed and finite for every grammar", () => {
     const geometry = createEnvironment({ search: `?artGrammar=${grammar}` })
       .createProfile().geometry;
 
-    assert.equal(geometry.masses.length, 24);
-    assert.equal(geometry.massMeta.length, 24);
-    assert.equal(geometry.cavities.length, 12);
-    assert.equal(geometry.cavityMeta.length, 12);
+    assert.equal(geometry.masses.length, baseGeometry().masses.length);
+    assert.equal(geometry.massMeta.length, baseGeometry().massMeta.length);
+    assert.equal(geometry.cavities.length, baseGeometry().cavities.length);
+    assert.equal(geometry.cavityMeta.length, baseGeometry().cavityMeta.length);
 
     for (const value of [
       ...geometry.masses,

@@ -44,7 +44,11 @@
 
   let profile = null;
   try {
-    profile = window.MPAdaptiveArt?.createProfile?.() || null;
+    // getProfile devolve a MESMA peça que art.js desenhou; o
+    // createProfile é só fallback para camadas antigas.
+    profile = window.MPAdaptiveArt?.getProfile?.() ||
+      window.MPAdaptiveArt?.createProfile?.() ||
+      null;
   }
   catch (error) {
     console.warn("Motion V12.2 sem perfil procedural:", error);

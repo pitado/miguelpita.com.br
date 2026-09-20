@@ -125,26 +125,41 @@ function activeExtent(geometry) {
   };
 }
 
-test("V11.1 expands the artwork presence", () => {
+test("V11.1 authors presence across the full intimate-to-overflowing range", () => {
   const api = createEnvironment();
-  const before = baseGeometry();
   const after = api.createProfile().geometry;
-  const beforeExtent = activeExtent(before);
-  const afterExtent = activeExtent(after);
 
   assert.equal(after.presenceVersion, "v11.1");
-  assert.ok(afterExtent.width > beforeExtent.width * 1.12);
-  assert.ok(afterExtent.height > beforeExtent.height * 1.08);
-  assert.ok(after.presenceScale >= 1.16);
+  assert.ok(after.presenceScale >= 0.72 && after.presenceScale <= 1.92);
+
+  // A faixa precisa ser exercida de verdade, não só permitida: com
+  // 1,16-1,34 toda peça ocupava a tela igual (CV medido: 0,042).
+  const scales = [];
+  for (let hash = 1; hash <= 200; hash++) {
+    scales.push(createEnvironment(hash).createProfile().geometry.presenceScale);
+  }
+
+  const mean = scales.reduce((a, b) => a + b, 0) / scales.length;
+  const sd = Math.sqrt(
+    scales.reduce((a, b) => a + (b - mean) ** 2, 0) / scales.length
+  );
+
+  assert.ok(Math.min(...scales) < 0.95, "nenhuma peça íntima");
+  assert.ok(Math.max(...scales) > 1.70, "nenhuma peça transbordante");
+  assert.ok(sd / mean > 0.15, `CV de presenceScale baixo: ${(sd / mean).toFixed(3)}`);
 });
 
-test("V11.1 weakens containment fades", () => {
+test("V11.1 no longer re-ratchets the framing decided upstream", () => {
+  // Esta camada aplicava piso em rightFadeStart, fadeWidth e
+  // verticalFade. Somado aos pisos de grammar e curation, congelava
+  // as três dimensões. Agora o enquadramento passa intacto.
+  const input = baseGeometry();
   const geometry = createEnvironment().createProfile().geometry;
 
-  assert.ok(geometry.rightFadeStart >= 0.76);
-  assert.ok(geometry.fadeWidth >= 0.66);
-  assert.ok(geometry.fadeStrength <= 0.22);
-  assert.ok(geometry.verticalFade >= 0.92);
+  assert.equal(geometry.rightFadeStart, input.rightFadeStart);
+  assert.equal(geometry.fadeWidth, input.fadeWidth);
+  assert.equal(geometry.fadeStrength, input.fadeStrength);
+  assert.equal(geometry.verticalFade, input.verticalFade);
 });
 
 test("same DNA produces identical presence geometry", () => {
@@ -184,10 +199,10 @@ test("different DNA produces a different authored composition", () => {
 test("WebGL1 array sizes remain unchanged and finite", () => {
   const geometry = createEnvironment().createProfile().geometry;
 
-  assert.equal(geometry.masses.length, 24);
-  assert.equal(geometry.massMeta.length, 24);
-  assert.equal(geometry.cavities.length, 12);
-  assert.equal(geometry.cavityMeta.length, 12);
+  assert.equal(geometry.masses.length, baseGeometry().masses.length);
+  assert.equal(geometry.massMeta.length, baseGeometry().massMeta.length);
+  assert.equal(geometry.cavities.length, baseGeometry().cavities.length);
+  assert.equal(geometry.cavityMeta.length, baseGeometry().cavityMeta.length);
 
   for (const value of [
     ...geometry.masses,

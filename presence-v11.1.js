@@ -29,26 +29,97 @@
     return hash >>> 0;
   }
 
-  function mulberry32(seed) {
-    let state = seed >>> 0;
+  // Fallback local do gerador V13. Em produção a camada consome
+  // profile.random (o mesmo xoshiro128** que atravessa a pilha);
+  // isto só existe para quando a camada roda isolada, sem base.
+  function localRandom(words) {
+    let s0 = words[0] >>> 0;
+    let s1 = words[1] >>> 0;
+    let s2 = words[2] >>> 0;
+    let s3 = words[3] >>> 0;
 
-    return () => {
-      state = (state + 0x6d2b79f5) | 0;
-      let value = Math.imul(state ^ (state >>> 15), 1 | state);
-      value = (
-        value + Math.imul(value ^ (value >>> 7), 61 | value)
-      ) ^ value;
-      return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+    if (!(s0 | s1 | s2 | s3)) {
+      s0 = 0x9e3779b9;
+      s1 = 0x243f6a88;
+      s2 = 0xb7e15162;
+      s3 = 0x85a308d3;
+    }
+
+    const step = () => {
+      const mixed = Math.imul(s1, 5);
+      const rotated = ((mixed << 7) | (mixed >>> 25)) >>> 0;
+      const result = Math.imul(rotated, 9) >>> 0;
+      const shifted = (s1 << 9) >>> 0;
+
+      s2 = (s2 ^ s0) >>> 0;
+      s3 = (s3 ^ s1) >>> 0;
+      s1 = (s1 ^ s2) >>> 0;
+      s0 = (s0 ^ s3) >>> 0;
+      s2 = (s2 ^ shifted) >>> 0;
+      s3 = ((s3 << 11) | (s3 >>> 21)) >>> 0;
+
+      return result;
     };
+
+    // mesmo aquecimento do gerador base.
+    for (let i = 0; i < 12; i++) step();
+
+    const uint32 = step;
+
+    const unit = () => uint32() / 4294967296;
+
+    const api = {
+      uint32,
+      unit,
+      between: (min, max) => lerp(min, max, unit()),
+      int(bound) {
+        const size = Math.floor(bound);
+        if (!(size > 1)) return 0;
+        const limit = 4294967296 - (4294967296 % size);
+        let value = uint32();
+        while (value >= limit) value = uint32();
+        return value % size;
+      },
+      pick: list => list[api.int(list.length)],
+      weighted(entries) {
+        let total = 0;
+        for (let i = 0; i < entries.length; i++) total += entries[i][1];
+        let ticket = unit() * total;
+        for (let i = 0; i < entries.length; i++) {
+          ticket -= entries[i][1];
+          if (ticket <= 0) return entries[i][0];
+        }
+        return entries[entries.length - 1][0];
+      },
+      chance: probability => unit() < probability,
+      sign: () => (unit() < 0.5 ? -1 : 1)
+    };
+
+    return api;
   }
 
-  function stream(rootHash, salt) {
-    return mulberry32(mix32((rootHash >>> 0) ^ (salt >>> 0)));
+  function randomFor(profile) {
+    if (profile?.random?.between) {
+      return profile.random;
+    }
+
+    const root = (
+      profile?.identity?.hash ??
+      profile?.identity?.detailHash ??
+      0x9e3779b9
+    ) >>> 0;
+
+    return localRandom(
+      profile?.identity?.state || [
+        mix32(root ^ 0x243f6a88),
+        mix32(root ^ 0x85a308d3),
+        mix32(root ^ 0x13198a2e),
+        mix32(root ^ 0x03707344)
+      ]
+    );
   }
 
-  function between(rng, min, max) {
-    return lerp(min, max, rng());
-  }
+  const LIMITS = baseApi.LIMITS || { maxMasses: 14, maxCavities: 6 };
 
   function copyGeometry(geometry) {
     return {
@@ -96,24 +167,22 @@
       return profile;
     }
 
-    const rootHash = (
-      profile.identity.detailHash ??
-      profile.identity.hash ??
-      0x51f15e77
-    ) >>> 0;
-    const rng = stream(rootHash, 0x51f15e77);
-    const detailRng = stream(rootHash, 0x9e3779b9);
+    // Antes esta camada era semeada por detailHash, que inclui tela,
+    // núcleos e memória: a mesma pessoa via outra peça ao trocar de
+    // monitor. Agora consome o gerador da peça, preso ao token.
+    const rng = randomFor(profile);
+    const detailRng = rng;
     const geometry = copyGeometry(profile.geometry);
     const bias = topologyBias(geometry.topology || geometry.family);
     const activeMasses = clamp(
       Number.isFinite(geometry.activeMasses) ? geometry.activeMasses : 6,
       1,
-      6
+      LIMITS.maxMasses
     );
     const activeCavities = clamp(
       Number.isFinite(geometry.activeCavities) ? geometry.activeCavities : 3,
       0,
-      3
+      LIMITS.maxCavities
     );
 
     let centroidX = 0;
@@ -128,18 +197,28 @@
     centroidX /= activeMasses;
     centroidY /= activeMasses;
 
-    // A composição passa a ocupar a tela como peça principal, não como
-    // objeto contido no centro. O valor continua seguro para o mesmo
-    // campo normalizado usado pelo shader WebGL1.
-    const presenceScale = between(rng, 1.16, 1.34);
-    const spreadX = bias.spreadX * between(rng, 0.98, 1.10);
-    const spreadY = bias.spreadY * between(rng, 0.98, 1.10);
-    const radiusX = bias.radiusX * presenceScale * between(rng, 0.96, 1.08);
-    const radiusY = bias.radiusY * presenceScale * between(rng, 0.96, 1.08);
-    const driftX = between(rng, -0.11, 0.11);
-    const driftY = between(rng, -0.08, 0.08);
-    const heroIndex = Math.floor(rng() * activeMasses);
-    let breakIndex = Math.floor(rng() * activeMasses);
+    // presenceScale media 1,16 a 1,34 (CV 0,042): toda peça ocupava a
+    // tela do mesmo jeito. Agora vem do arquétipo de escala, cujas
+    // faixas são separadas por lacunas — íntimo e transbordante são
+    // famílias distintas, não as caudas raras de um sorteio só.
+    const scaleRange = geometry.archetypeRanges?.scale || [0.72, 1.92];
+    const balance = geometry.archetypeRanges?.balance || {
+      driftX: [0, 0.11],
+      driftY: [0, 0.08]
+    };
+
+    const presenceScale = rng.between(scaleRange[0], scaleRange[1]);
+    const spreadX = bias.spreadX * rng.between(0.98, 1.10);
+    const spreadY = bias.spreadY * rng.between(0.98, 1.10);
+    const radiusX = bias.radiusX * presenceScale * rng.between(0.96, 1.08);
+    const radiusY = bias.radiusY * presenceScale * rng.between(0.96, 1.08);
+
+    // O arquétipo de balanço decide o quanto a peça sai do centro; o
+    // sinal é sorteado à parte para não enviesar sempre para um lado.
+    const driftX = rng.sign() * rng.between(balance.driftX[0], balance.driftX[1]);
+    const driftY = rng.sign() * rng.between(balance.driftY[0], balance.driftY[1]);
+    const heroIndex = Math.floor(rng.unit() * activeMasses);
+    let breakIndex = Math.floor(rng.unit() * activeMasses);
 
     if (activeMasses > 1 && breakIndex === heroIndex) {
       breakIndex = (breakIndex + 1) % activeMasses;
@@ -152,12 +231,12 @@
       const localX = x - centroidX;
       const localY = y - centroidY;
       const localJitter = i === breakIndex
-        ? between(detailRng, 0.085, 0.16)
-        : between(detailRng, 0.008, 0.045);
-      const jitterAngle = between(detailRng, -Math.PI, Math.PI);
+        ? detailRng.between(0.085, 0.16)
+        : detailRng.between(0.008, 0.045);
+      const jitterAngle = detailRng.between(-Math.PI, Math.PI);
       const heroBoost = i === heroIndex
-        ? between(detailRng, 1.18, 1.36)
-        : between(detailRng, 0.94, 1.10);
+        ? detailRng.between(1.18, 1.36)
+        : detailRng.between(0.94, 1.10);
 
       geometry.masses[offset] = clamp(
         centroidX + localX * spreadX + driftX + Math.cos(jitterAngle) * localJitter,
@@ -180,21 +259,29 @@
         0.78
       );
 
-      geometry.massMeta[offset] =
+      // O arquétipo de ordem decide se os ângulos ficam soltos ou
+      // presos a uma grade: ortogonal trava em 90 graus, modular em
+      // 45, orgânico e caótico não travam em nada.
+      const snap = geometry.archetypeRanges?.order?.snap || 0;
+      const loosened =
         (geometry.massMeta[offset] || 0) +
-        between(detailRng, -0.24, 0.24) +
-        (i === breakIndex ? between(detailRng, -0.28, 0.28) : 0);
+        detailRng.between(-0.24, 0.24) +
+        (i === breakIndex ? detailRng.between(-0.28, 0.28) : 0);
+
+      geometry.massMeta[offset] = snap > 0
+        ? Math.round(loosened / snap) * snap
+        : loosened;
       geometry.massMeta[offset + 1] = clamp(
         (geometry.massMeta[offset + 1] || 0) +
-          between(detailRng, -0.16, 0.16),
+          detailRng.between(-0.16, 0.16),
         -0.72,
         0.72
       );
       geometry.massMeta[offset + 2] = clamp(
         (geometry.massMeta[offset + 2] || 1) *
           (i === heroIndex
-            ? between(detailRng, 1.04, 1.16)
-            : between(detailRng, 0.93, 1.08)),
+            ? detailRng.between(1.04, 1.16)
+            : detailRng.between(0.93, 1.08)),
         0.28,
         1.35
       );
@@ -206,87 +293,62 @@
       const y = geometry.cavities[offset + 1] || 0;
 
       geometry.cavities[offset] = clamp(
-        centroidX + (x - centroidX) * spreadX + driftX + between(detailRng, -0.04, 0.04),
+        centroidX + (x - centroidX) * spreadX + driftX + detailRng.between(-0.04, 0.04),
         -0.80,
         0.80
       );
       geometry.cavities[offset + 1] = clamp(
-        centroidY + (y - centroidY) * spreadY + driftY + between(detailRng, -0.035, 0.035),
+        centroidY + (y - centroidY) * spreadY + driftY + detailRng.between(-0.035, 0.035),
         -0.60,
         0.60
       );
       geometry.cavities[offset + 2] = clamp(
         Math.max(0.025, geometry.cavities[offset + 2] || 0.025) *
-          between(detailRng, 1.12, 1.34),
+          detailRng.between(1.12, 1.34),
         0.025,
         0.58
       );
       geometry.cavities[offset + 3] = clamp(
         Math.max(0.025, geometry.cavities[offset + 3] || 0.025) *
-          between(detailRng, 1.10, 1.30),
+          detailRng.between(1.10, 1.30),
         0.025,
         0.52
       );
       geometry.cavityMeta[offset] =
         (geometry.cavityMeta[offset] || 0) +
-        between(detailRng, -0.18, 0.18);
+        detailRng.between(-0.18, 0.18);
       geometry.cavityMeta[offset + 3] = clamp(
         (geometry.cavityMeta[offset + 3] || 0) *
-          between(detailRng, 0.92, 1.12),
+          detailRng.between(0.92, 1.12),
         0,
         0.94
       );
     }
 
-    // Remove a sensação de moldura/círculo: as bordas não apagam a arte
-    // cedo demais e a geometria pode atravessar visualmente o viewport.
-    geometry.rightFadeStart = Math.max(0.76, geometry.rightFadeStart || 0.45);
-    geometry.fadeWidth = Math.max(0.66, geometry.fadeWidth || 0.55);
-    geometry.fadeStrength = clamp(
-      (geometry.fadeStrength || 0.30) * between(detailRng, 0.36, 0.68),
-      0.045,
-      0.22
-    );
-    geometry.verticalFade = Math.max(0.92, geometry.verticalFade || 0.64);
+    // Os quatro pisos de enquadramento que existiam aqui
+    // (rightFadeStart >= 0.76, fadeWidth >= 0.66, verticalFade >= 0.92
+    // e um teto de 0.22 em fadeStrength) saíram na V13. Somados aos
+    // pisos de grammar e curation, eles faziam as três dimensões
+    // medirem exatamente o mesmo valor em 3.000 sementes. O
+    // enquadramento é decidido uma única vez, em adaptive-profile.
 
-    // Imperfeição controlada. Não aumenta custo de renderização; apenas
-    // desloca os parâmetros que já existem no shader.
-    geometry.asymmetry = clamp(
-      Math.max(geometry.asymmetry || 0.10, between(detailRng, 0.40, 0.82)),
-      0.10,
-      0.88
-    );
-    geometry.flowStrength = clamp(
-      (geometry.flowStrength || 0.04) * between(detailRng, 1.12, 1.34) + 0.012,
-      0.035,
-      0.22
-    );
-    geometry.warpA = clamp(
-      (geometry.warpA || 0.04) * between(detailRng, 1.10, 1.30),
-      0.02,
-      0.15
-    );
-    geometry.warpB = clamp(
-      (geometry.warpB || 0.035) * between(detailRng, 1.08, 1.26),
-      0.016,
-      0.13
-    );
-    geometry.faultStrength = clamp(
-      (geometry.faultStrength || 0) * between(detailRng, 1.06, 1.28) +
-        between(detailRng, 0.008, 0.035),
-      0.008,
-      0.22
-    );
-    geometry.foldStrengthA = clamp(
-      (geometry.foldStrengthA || 0.025) * between(detailRng, 1.05, 1.22),
-      0.012,
-      0.095
-    );
-    geometry.foldStrengthB = clamp(
-      (geometry.foldStrengthB || 0.015) * between(detailRng, 1.04, 1.20),
-      0.006,
-      0.065
-    );
+    /* -----------------------------------------------------
+       O bloco de "imperfeição controlada" que ficava aqui foi
+       removido na V13. Ele fazia:
+
+         asymmetry    = max(asymmetry, entre 0,40 e 0,82)
+         flowStrength = clamp(flow * ~1,2 + 0,012, 0,035, 0,22)
+         warpA/warpB/fault/fold: mesmo padrão de multiplicar e
+                                 prender numa faixa estreita
+
+       Ou seja: um piso e um teto aplicados por cima da decisão
+       de quem veio antes. Com os arquétipos (V13) isso apagaria
+       justamente o que os separa — o piso de asymmetry sozinho
+       tornaria impossível uma peça `ortogonal` (0,03-0,20), e o
+       clamp de flow engoliria `calmo` (0,004-0,042) e `violento`
+       (0,212-0,340) nos dois extremos, devolvendo todo mundo
+       para o meio. O arquétipo é a autoridade agora.
+    ----------------------------------------------------- */
 
     geometry.anchorX = geometry.masses[0];
     geometry.anchorY = geometry.masses[1];

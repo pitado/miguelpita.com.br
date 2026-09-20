@@ -33,14 +33,19 @@
   }
 
   let profile =
-    window.MPAdaptiveArt
-      .createProfile();
+    window.MPAdaptiveArt.getProfile
+      ? window.MPAdaptiveArt.getProfile()
+      : window.MPAdaptiveArt.createProfile();
 
   let QUALITY =
     profile.quality;
 
   const DNA =
     profile.geometry;
+
+  // Antes de qualquer WebGL: se o shader falhar e cair no fallback
+  // 2D, a moldura da página já está coerente com a peça.
+  window.MPAdaptiveArt.applyPageTheme?.(profile);
 
   const REDUCED_MOTION =
     window.matchMedia?.(
@@ -174,6 +179,69 @@
     "background:#315c39;color:#fff;padding:4px 8px;border-radius:4px"
   );
 
+  /*
+  =========================================
+  CAPACIDADE DE UNIFORMS
+
+  O DNA agora pede de 2 a 14 massas, não mais 6 fixas. Os arrays
+  do fragment shader custam 2 vec4 por massa e 2 por cavidade, e
+  somam com os ~41 escalares do resto do shader. Em vez de chutar
+  um teto, o shader é gerado no tamanho que a GPU declara
+  suportar: assim o aparelho forte desenha a peça inteira e o
+  fraco desenha uma versão reduzida dela em vez de falhar a
+  compilação e cair no fallback 2D.
+
+  O DNA em si não muda com isso — só quantas massas dele chegam
+  à GPU. Peça continua determinística por token.
+  =========================================
+  */
+
+  const DNA_LIMITS =
+    window.MPAdaptiveArt.LIMITS ||
+    { maxMasses: 14, maxCavities: 6 };
+
+  const uniformVectors = (() => {
+    try {
+      return gl.getParameter(
+        gl.MAX_FRAGMENT_UNIFORM_VECTORS
+      ) || 64;
+    }
+    catch {
+      return 64;
+    }
+  })();
+
+  const SCALAR_BUDGET = 56;
+
+  const MAX_MASSES =
+    Math.max(
+      2,
+      Math.min(
+        DNA_LIMITS.maxMasses,
+        Math.floor(
+          (uniformVectors - SCALAR_BUDGET) / 3
+        )
+      )
+    );
+
+  const MAX_CAVITIES =
+    Math.max(
+      1,
+      Math.min(
+        DNA_LIMITS.maxCavities,
+        Math.round(MAX_MASSES / 2.4)
+      )
+    );
+
+  console.log(
+    "Capacidade de uniforms:",
+    {
+      uniformVectors,
+      maxMasses: MAX_MASSES,
+      maxCavities: MAX_CAVITIES
+    }
+  );
+
   const vertexSource = `
 
     attribute vec2 a_position;
@@ -296,14 +364,14 @@
     uniform float u_technicalPhase;
 
 
-    uniform vec4 u_massData[6];
+    uniform vec4 u_massData[${MAX_MASSES}];
 
-    uniform vec4 u_massMeta[6];
+    uniform vec4 u_massMeta[${MAX_MASSES}];
 
 
-    uniform vec4 u_cavityData[3];
+    uniform vec4 u_cavityData[${MAX_CAVITIES}];
 
-    uniform vec4 u_cavityMeta[3];
+    uniform vec4 u_cavityMeta[${MAX_CAVITIES}];
 
 
     float hash21(
@@ -1060,7 +1128,7 @@
 
         int i = 0;
 
-        i < 6;
+        i < ${MAX_MASSES};
 
         i++
 
@@ -1142,7 +1210,7 @@
 
         int i = 0;
 
-        i < 3;
+        i < ${MAX_CAVITIES};
 
         i++
 
@@ -2642,28 +2710,28 @@
   const massData =
 
     new Float32Array(
-      DNA.masses
+      DNA.masses.slice(0, MAX_MASSES * 4)
     );
 
 
   const massMeta =
 
     new Float32Array(
-      DNA.massMeta
+      DNA.massMeta.slice(0, MAX_MASSES * 4)
     );
 
 
   const cavityData =
 
     new Float32Array(
-      DNA.cavities
+      DNA.cavities.slice(0, MAX_CAVITIES * 4)
     );
 
 
   const cavityMeta =
 
     new Float32Array(
-      DNA.cavityMeta
+      DNA.cavityMeta.slice(0, MAX_CAVITIES * 4)
     );
 
 
