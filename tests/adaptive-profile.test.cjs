@@ -234,9 +234,16 @@ test("families have different structural signatures", () => {
   const environment = createEnvironment();
   const examples = new Map();
 
-  for (let seed = 1; examples.size < 4 && seed < 1000; seed++) {
+  // A contagem de cavidades passou a variar com o arquétipo de
+  // densidade e pode ser zero numa peça esparsa, então a amostra de
+  // cada família precisa ser uma que tenha cavidades para que a
+  // assinatura de recorte do basin seja verificável.
+  for (let seed = 1; examples.size < 4 && seed < 4000; seed++) {
     const geometry = profileForSeed(environment, seed).geometry;
-    examples.set(geometry.family, geometry);
+
+    if (geometry.activeCavities > 0 && !examples.has(geometry.family)) {
+      examples.set(geometry.family, geometry);
+    }
   }
 
   const strata = examples.get("strata");
@@ -277,14 +284,21 @@ test("families have different structural signatures", () => {
 
 test("all profiles keep WebGL1 fixed-size arrays and finite values", () => {
   const environment = createEnvironment();
+  const counts = new Set();
 
   for (let seed = 1; seed <= 128; seed++) {
     const geometry = profileForSeed(environment, seed).geometry;
 
-    assert.equal(geometry.masses.length, 24);
-    assert.equal(geometry.massMeta.length, 24);
-    assert.equal(geometry.cavities.length, 12);
-    assert.equal(geometry.cavityMeta.length, 12);
+    // Os slots são fixos (o shader precisa disso), mas quantos deles
+    // estão ativos passou a variar: era 6 para toda peça.
+    assert.equal(geometry.masses.length, 56);
+    assert.equal(geometry.massMeta.length, 56);
+    assert.equal(geometry.cavities.length, 24);
+    assert.equal(geometry.cavityMeta.length, 24);
+    assert.ok(geometry.activeMasses >= 2 && geometry.activeMasses <= 14);
+    assert.ok(geometry.activeCavities >= 0 && geometry.activeCavities <= 6);
+
+    counts.add(geometry.activeMasses);
 
     for (const value of [
       ...geometry.masses,
@@ -295,6 +309,8 @@ test("all profiles keep WebGL1 fixed-size arrays and finite values", () => {
       assert.ok(Number.isFinite(value));
     }
   }
+
+  assert.ok(counts.size >= 8, `contagens de massa distintas: ${counts.size}`);
 });
 
 test("layout stays stable while device traits and power are recomputed", () => {
@@ -346,6 +362,87 @@ test("different installation tokens generate different artwork", () => {
   assert.notEqual(
     JSON.stringify(first.geometry),
     JSON.stringify(second.geometry)
+  );
+});
+
+function channelLuminance(channel) {
+  const value = Math.min(1, Math.max(0, channel));
+  return value <= 0.03928
+    ? value / 12.92
+    : Math.pow((value + 0.055) / 1.055, 2.4);
+}
+
+function relativeLuminance(color) {
+  return (
+    0.2126 * channelLuminance(color[0]) +
+    0.7152 * channelLuminance(color[1]) +
+    0.0722 * channelLuminance(color[2])
+  );
+}
+
+function contrastRatio(a, b) {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+function hslLightness(color) {
+  return (Math.max(...color) + Math.min(...color)) / 2;
+}
+
+test("every palette regime guarantees WCAG contrast on its own terms", () => {
+  const environment = createEnvironment();
+  const regimes = new Set();
+  let darkBackgrounds = 0;
+  let visibleAccents = 0;
+
+  for (let seed = 1; seed <= 600; seed++) {
+    const geometry = profileForSeed(environment, seed).geometry;
+    const background = geometry.backgroundColor;
+
+    regimes.add(geometry.paletteRegime);
+
+    // O piso é garantido dentro do regime, sem clarear o fundo.
+    assert.ok(
+      contrastRatio(geometry.lineColor, background) >= 2.99,
+      `contraste insuficiente em ${geometry.paletteRegime}`
+    );
+    assert.ok(contrastRatio(geometry.accentColor, background) >= 1.79);
+
+    if (relativeLuminance(background) < 0.22) {
+      darkBackgrounds++;
+    }
+
+    const accentLightness = hslLightness(geometry.accentColor);
+    if (accentLightness >= 0.35 && accentLightness <= 0.75) {
+      visibleAccents++;
+    }
+  }
+
+  assert.deepEqual(
+    [...regimes].sort(),
+    [
+      "alto-contraste",
+      "claro-lavado",
+      "duotonico",
+      "escuro-profundo",
+      "monocromatico",
+      "saturado-frio",
+      "saturado-quente"
+    ]
+  );
+
+  // O fundo precisa PODER ser escuro, não só em teoria.
+  assert.ok(
+    darkBackgrounds >= 90,
+    `fundos escuros de menos: ${darkBackgrounds}/600`
+  );
+
+  // E o accent precisa aparecer como meio-tom visível, senão a
+  // saturação alta some num acento quase preto, como na V12.
+  assert.ok(
+    visibleAccents >= 120,
+    `accents visíveis de menos: ${visibleAccents}/600`
   );
 });
 

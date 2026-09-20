@@ -161,8 +161,8 @@ test("V11 exposes all topology families across independent seeds", () => {
       "crater",
       "fracture",
       "lattice",
-      "ridge",
       "ribbon",
+      "ridge",
       "shards",
       "shell",
       "vortex"
@@ -194,12 +194,12 @@ test("every V11 topology preserves WebGL1 fixed-size geometry arrays", () => {
   for (let seed = 1; seed <= 512; seed++) {
     const geometry = profileForSeed(environment, seed).geometry;
 
-    assert.equal(geometry.masses.length, 24);
-    assert.equal(geometry.massMeta.length, 24);
-    assert.equal(geometry.cavities.length, 12);
-    assert.equal(geometry.cavityMeta.length, 12);
-    assert.ok(geometry.activeMasses >= 1 && geometry.activeMasses <= 6);
-    assert.ok(geometry.activeCavities >= 0 && geometry.activeCavities <= 3);
+    assert.equal(geometry.masses.length, 56);
+    assert.equal(geometry.massMeta.length, 56);
+    assert.equal(geometry.cavities.length, 24);
+    assert.equal(geometry.cavityMeta.length, 24);
+    assert.ok(geometry.activeMasses >= 2 && geometry.activeMasses <= 14);
+    assert.ok(geometry.activeCavities >= 0 && geometry.activeCavities <= 6);
 
     for (const value of [
       ...geometry.masses,
