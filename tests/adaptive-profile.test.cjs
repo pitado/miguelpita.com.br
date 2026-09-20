@@ -465,8 +465,8 @@ test("every palette regime guarantees WCAG contrast on its own terms", () => {
   );
 
   assert.ok(
-    weakestSaturation >= 0.20,
-    `peça sem cor na população: saturação mínima ${weakestSaturation.toFixed(3)}`
+    weakestSaturation >= 0.45,
+    `peça com cor fraca na população: saturação mínima ${weakestSaturation.toFixed(3)}`
   );
 });
 

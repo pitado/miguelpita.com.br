@@ -214,23 +214,81 @@
     );
   }
 
-  // Antes: transformColor empurrava os canais para longe de 0.5 e
-  // aplicava um viés sempre negativo, ou seja, escurecia. Numa paleta
-  // de fundo escuro (V13) isso joga a linha PARA DENTRO do fundo.
-  // Agora a gramática afasta a cor do fundo no sentido que o tema
-  // pede: escurece em tema claro, clareia em tema escuro.
+  function rgbToHsl(color) {
+    const [r, g, b] = color;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    const d = max - min;
+
+    if (d === 0) return { h: 0, s: 0, l };
+
+    let h;
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+
+    return {
+      h: h * 360,
+      s: l > 0.5 ? d / (2 - max - min) : d / (max + min),
+      l
+    };
+  }
+
+  function hslToRgb(hue, saturation, lightness) {
+    const h = (((hue % 360) + 360) % 360) / 60;
+    const sat = clamp(saturation, 0, 1);
+    const li = clamp(lightness, 0, 1);
+    const c = (1 - Math.abs(2 * li - 1)) * sat;
+    const x = c * (1 - Math.abs((h % 2) - 1));
+    const m = li - c / 2;
+
+    let r = 0, g = 0, b = 0;
+    if (h < 1) { r = c; g = x; }
+    else if (h < 2) { r = x; g = c; }
+    else if (h < 3) { g = c; b = x; }
+    else if (h < 4) { g = x; b = c; }
+    else if (h < 5) { r = x; b = c; }
+    else { r = c; b = x; }
+
+    return [r + m, g + m, b + m];
+  }
+
+  /* Antes: transformColor empurrava os canais para longe de 0.5 com
+     vies sempre negativo, ou seja, escurecia — e num fundo escuro
+     jogava a linha PARA DENTRO do fundo.
+
+     Depois: deepen mexia nos canais RGB crus. Funcionava para o
+     contraste, mas empurrar canal para 0 ou para 1 DESSATURA por
+     construcao, que e o oposto da direcao "cores fortes".
+
+     Agora mexe so na luminosidade, em HSL. Matiz e saturacao
+     atravessam a gramatica intactos. */
   function deepen(color, background, amount) {
     const overDark = relativeLuminance(background) < 0.22;
+    const tone = rgbToHsl(color);
+    const lightness = overDark
+      ? tone.l + amount * (1 - tone.l)
+      : tone.l - amount * tone.l;
 
-    return color.map(channel =>
-      clamp(
-        overDark
-          ? channel + amount * (1 - channel)
-          : channel - amount * channel,
-        0,
-        1
-      )
-    );
+    return hslToRgb(tone.h, tone.s, lightness);
+  }
+
+  // Piso de saturacao da paleta, re-aplicado depois das
+  // transformacoes desta camada. Vem da base; o literal e so para
+  // quando a camada roda isolada nos testes.
+  const SATURATION_FLOOR = baseApi.SATURATION_FLOOR || {
+    background: 0.46,
+    line: 0.52,
+    accent: 0.74
+  };
+
+  function keepVivid(color, floor) {
+    const tone = rgbToHsl(color);
+
+    return tone.s >= floor
+      ? color
+      : hslToRgb(tone.h, floor, tone.l);
   }
 
   function desaturate(color, amount) {
@@ -362,16 +420,20 @@
       geometry.masses[offset + 3] *= index % 2 === 0 ? 0.88 : 1.15;
     });
 
-    // A dessaturacao caiu de 0,20/0,12 para 0,06/0,03: a gramatica
-    // technical segue a mais sobria das seis, mas "sobria" nao pode
-    // mais significar cinza.
-    geometry.lineColor = desaturate(
-      deepen(geometry.lineColor, geometry.backgroundColor, 0.12),
-      0.06
+    /* A dessaturacao saiu de vez. Ela foi de 0,20/0,12 para
+       0,06/0,03 e agora para zero: com "cores fortes em todas as
+       variacoes", a gramatica technical expressa sobriedade pela
+       geometria (angulos travados, pouco fluxo, pouca dobra), nao
+       tirando cor. */
+    geometry.lineColor = deepen(
+      geometry.lineColor,
+      geometry.backgroundColor,
+      0.12
     );
-    geometry.accentColor = desaturate(
-      deepen(geometry.accentColor, geometry.backgroundColor, 0.14),
-      0.03
+    geometry.accentColor = deepen(
+      geometry.accentColor,
+      geometry.backgroundColor,
+      0.14
     );
   }
 
@@ -540,6 +602,12 @@
     const baseSpecies = geometry.species;
 
     geometryTransforms[grammarIndex](geometry, geometryRng);
+
+    // Rede de seguranca: nenhuma gramatica entrega cor abaixo do
+    // piso, mesmo que uma transformacao futura esqueca disso.
+    geometry.backgroundColor = keepVivid(geometry.backgroundColor, SATURATION_FLOOR.background);
+    geometry.lineColor = keepVivid(geometry.lineColor, SATURATION_FLOOR.line);
+    geometry.accentColor = keepVivid(geometry.accentColor, SATURATION_FLOOR.accent);
 
     geometry.baseSpecies = baseSpecies;
     geometry.grammar = grammar;

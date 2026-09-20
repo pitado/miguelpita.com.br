@@ -207,6 +207,7 @@ function featuresOf(profile) {
     presenceScale: geometry.presenceScale,
     coverage: geometry.curation?.coverage ?? 1,
     bgH: background.h,
+    accentH: accent.h,
     rightFadeStart: geometry.rightFadeStart,
     fadeWidth: geometry.fadeWidth,
     fadeStrength: geometry.fadeStrength,
@@ -361,20 +362,41 @@ test("few pairs of pieces land close enough to read as the same artwork", () => 
 });
 
 test("the art direction holds for every piece in the population", () => {
-  // Sempre colorido: nenhum dos três tons vira cinza.
+  /* CORES FORTES EM TODAS AS VARIACOES.
+
+     O piso subiu de 0,20 para 0,45. E o teste deixou de cobrar
+     amplitude no accentS: ele esta preso na faixa [0,74, 1,0] de
+     proposito, entao sua amplitude e no maximo 0,26 por
+     construcao — cobrar dispersao ali seria punir exatamente o
+     que foi pedido. O que o accent precisa garantir e piso e
+     variedade de MATIZ, e e isso que se cobra abaixo. */
   let weakest = 1;
   for (const row of population) {
     for (const key of SATURATIONS) weakest = Math.min(weakest, row[key]);
   }
-  assert.ok(weakest >= 0.20, `peça sem cor: saturação ${weakest.toFixed(3)}`);
+  assert.ok(weakest >= 0.45, `peça com cor fraca: saturação ${weakest.toFixed(3)}`);
 
-  // Mas a cor não pode ter virado uma cor só: o matiz do fundo
-  // precisa percorrer o círculo inteiro.
-  const sectors = new Set(population.map(row => Math.floor(row.bgH / 30)));
-  assert.equal(sectors.size, 12, `setores de matiz cobertos: ${sectors.size}/12`);
+  const weakestAccent = Math.min(...population.map(row => row.accentS));
+  assert.ok(
+    weakestAccent >= 0.70,
+    `accent sem força: saturação ${weakestAccent.toFixed(3)}`
+  );
 
-  // E a saturação, mesmo com piso, precisa variar de verdade.
-  for (const key of SATURATIONS) {
+  /* Luminosidade do fundo: nenhum fundo pode subir ao ponto de
+     lavar a cor. Saturacao 0,50 num fundo com 0,88 de luz e
+     pastel, por mais alto que o piso de saturacao esteja. */
+  const lightest = Math.max(...population.map(row => row.bgL));
+  assert.ok(lightest <= 0.82, `fundo lavado: luz ${lightest.toFixed(3)}`);
+
+  // Cor forte não pode virar uma cor só: matiz do fundo E do
+  // accent precisam percorrer o círculo inteiro.
+  const bgSectors = new Set(population.map(row => Math.floor(row.bgH / 30)));
+  const accentSectors = new Set(population.map(row => Math.floor(row.accentH / 30)));
+  assert.equal(bgSectors.size, 12, `matiz de fundo: ${bgSectors.size}/12`);
+  assert.equal(accentSectors.size, 12, `matiz de accent: ${accentSectors.size}/12`);
+
+  // Fundo e linha ainda precisam variar em saturação de verdade.
+  for (const key of ["bgS", "lineS"]) {
     const values = population.map(row => row[key]);
     const span = Math.max(...values) - Math.min(...values);
     assert.ok(span >= 0.25, `${key} quase fixo: amplitude ${span.toFixed(3)}`);
