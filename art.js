@@ -2480,6 +2480,12 @@
 
     "u_verticalFade",
 
+    "u_fieldReach",
+
+    "u_fieldFill",
+
+    "u_fieldFloor",
+
     "u_breathing",
 
     "u_linePhase",

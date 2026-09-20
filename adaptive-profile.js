@@ -1383,7 +1383,10 @@
       // Piso que nunca zera: garante textura ate os cantos mesmo
       // quando a composicao e pequena e deslocada. E o que faz o
       // "sempre preenchendo" valer para a cauda, nao so na mediana.
-      fieldFloor: random.between(0.13, 0.22),
+      // Subiu de 0,13-0,22 para 0,30-0,44: no valor antigo, com a
+      // linha desenhada a 50% de opacidade sobre uma paleta clara,
+      // a textura de fundo simplesmente nao registrava no olho.
+      fieldFloor: random.between(0.30, 0.44),
 
       rightFadeStart: fadeStart,
       fadeWidth,

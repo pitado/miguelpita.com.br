@@ -133,7 +133,7 @@
      indiferente ao estilo: uma peça íntima e uma transbordante
      podem ter a mesma cobertura por caminhos diferentes.
   --------------------------------------------------------- */
-  function coverage(geometry) {
+  function coverage(geometry, window) {
     const massCount = activeMassCount(geometry);
     const cavityCount = activeCavityCount(geometry);
     const globalAngle = geometry.globalAngle || 0;
@@ -143,17 +143,25 @@
     const fadeDirection = geometry.fadeDirection || 1;
     const verticalFade = geometry.verticalFade ?? 0.96;
 
-    const COLS = 41;
-    const ROWS = 23;
+    const COLS = window?.cols ?? 41;
+    const ROWS = window?.rows ?? 23;
     const ASPECT = 1.6;
+
+    // Janela em coordenadas -1..1 do viewport; sem janela, a tela toda.
+    const x0 = window?.x0 ?? -1;
+    const x1 = window?.x1 ?? 1;
+    const y0 = window?.y0 ?? -1;
+    const y1 = window?.y1 ?? 1;
 
     let visible = 0;
     let total = 0;
 
     for (let row = 0; row < ROWS; row++) {
       for (let col = 0; col < COLS; col++) {
-        const px = ((col + 0.5) / COLS - 0.5) * ASPECT;
-        const py = (row + 0.5) / ROWS - 0.5;
+        const px =
+          (x0 + ((col + 0.5) / COLS) * (x1 - x0)) * 0.5 * ASPECT;
+        const py =
+          (y0 + ((row + 0.5) / ROWS) * (y1 - y0)) * 0.5;
 
         total++;
 
@@ -179,6 +187,24 @@
 
         // mesma janela de 0.78 a 1.32 do shapeMask do shader
         let presence = 1 - clamp((nearest - 0.78) / 0.54, 0, 1);
+
+        /* O campo estendido so entra quando perguntado. Sao duas
+           perguntas diferentes e elas precisam de duas medidas:
+
+           sem campo -> "existe composicao aqui?"  (piso de forma)
+           com campo -> "o olho ve algo aqui?"     (buraco na tela)
+
+           Medir buraco sem o campo foi um erro meu: a funcao
+           acusava vazio em regiao que na tela esta coberta de
+           textura. */
+        if (window?.includeField) {
+          const reach = Math.max(1.3, geometry.fieldReach ?? 3.2);
+          const fill = geometry.fieldFill ?? 0.34;
+          const floor = geometry.fieldFloor ?? 0.16;
+          const t = 1 - clamp((nearest - 1.15) / (reach - 1.15), 0, 1);
+
+          presence = Math.max(presence, floor + (fill - floor) * t);
+        }
 
         for (let index = 0; index < cavityCount; index++) {
           const offset = index * 4;
@@ -211,6 +237,35 @@
 
     return visible / total;
   }
+
+  /* ---------------------------------------------------------
+     POR QUE NAO HA METRICA DE "BURACO" AQUI
+
+     Tentei tres versoes de uma medida de regiao vazia calculada a
+     partir da geometria, e todas mediram a coisa errada:
+
+       1. sem o campo estendido: acusava vazio em regiao que na tela
+          esta coberta de textura;
+       2. com o campo: como o piso do campo (0,30+) ja passa do
+          limiar de visibilidade, TODA celula dava cheia e a medida
+          saturava em 1,00 — inclusive para a peca que o dono da
+          obra fotografou reclamando de canto vazio;
+       3. contando fracao de pontos acima de um limiar: o olho nao
+          le "vazio" como ausencia de valor, le como ausencia de
+          VARIACAO, e limiar nenhum captura isso.
+
+     Uma metrica que sempre diz "cheio" e pior que nenhuma: parece
+     uma protecao e nao verifica nada. Entao ela saiu.
+
+     O que garante o preenchimento hoje e o piso do campo estendido
+     ser nao-nulo E estar de fato ligado ao shader. O segundo ponto
+     virou teste proprio (tests/art-uniforms.test.cjs), porque foi
+     exatamente ali que o bug aconteceu: as uniforms do campo
+     ficaram fora da lista uniformNames, gl.uniform1f(undefined, x)
+     falhou em silencio, e o recurso inteiro foi para producao
+     morto. A verificacao de que a tela nao tem regiao chapada e
+     feita nos pixels renderizados, fora da suite unitaria.
+  --------------------------------------------------------- */
 
   /* ---------------------------------------------------------
      DIAGNÓSTICO
