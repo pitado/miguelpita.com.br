@@ -350,6 +350,72 @@
        para o meio. O arquétipo é a autoridade agora.
     ----------------------------------------------------- */
 
+    /* -----------------------------------------------------
+       ATRAVESSAR O VIEWPORT
+
+       DIRECAO DE ARTE, declarada, nao reparo estetico.
+
+       Ate aqui nada garantia que as massas cruzassem a tela. Uma
+       composicao de 4 massas podia ocupar x de -0,13 a 0,76 num
+       viewport de -0,8 a 0,8 e medir 66% de cobertura, porque os
+       34% que faltavam estavam concentrados num bloco so: o canto
+       vazio que o dono da obra reclamou, duas vezes.
+
+       Este passo estica as posicoes em torno do centroide ate a
+       caixa das massas cruzar a tela nos dois eixos. Ele NAO e o
+       expandToViewport da V12: aquele era condicional, disparado
+       por nota baixa, e escalava tambem os raios ate empurrar toda
+       peca para o mesmo otimo. Este roda sempre, mexe so em
+       posicao, e tem teto — o que a peca faz DENTRO da area
+       continua livre.
+    ----------------------------------------------------- */
+    const SPAN_X = 1.46;
+    const SPAN_Y = 0.92;
+
+    let boxMinX = Infinity;
+    let boxMaxX = -Infinity;
+    let boxMinY = Infinity;
+    let boxMaxY = -Infinity;
+
+    for (let i = 0; i < activeMasses; i++) {
+      const offset = i * 4;
+      const rx = geometry.masses[offset + 2];
+      const ry = geometry.masses[offset + 3];
+
+      boxMinX = Math.min(boxMinX, geometry.masses[offset] - rx);
+      boxMaxX = Math.max(boxMaxX, geometry.masses[offset] + rx);
+      boxMinY = Math.min(boxMinY, geometry.masses[offset + 1] - ry);
+      boxMaxY = Math.max(boxMaxY, geometry.masses[offset + 1] + ry);
+    }
+
+    const stretchX = clamp(SPAN_X / Math.max(0.2, boxMaxX - boxMinX), 1, 2.1);
+    const stretchY = clamp(SPAN_Y / Math.max(0.15, boxMaxY - boxMinY), 1, 2.1);
+    const boxCenterX = (boxMinX + boxMaxX) * 0.5;
+    const boxCenterY = (boxMinY + boxMaxY) * 0.5;
+
+    for (let i = 0; i < activeMasses; i++) {
+      const offset = i * 4;
+
+      geometry.masses[offset] =
+        boxCenterX + (geometry.masses[offset] - boxCenterX) * stretchX;
+      geometry.masses[offset + 1] =
+        boxCenterY + (geometry.masses[offset + 1] - boxCenterY) * stretchY;
+    }
+
+    for (let i = 0; i < activeCavities; i++) {
+      const offset = i * 4;
+
+      geometry.cavities[offset] =
+        boxCenterX + (geometry.cavities[offset] - boxCenterX) * stretchX;
+      geometry.cavities[offset + 1] =
+        boxCenterY + (geometry.cavities[offset + 1] - boxCenterY) * stretchY;
+    }
+
+    geometry.viewportStretch = [
+      Number(stretchX.toFixed(3)),
+      Number(stretchY.toFixed(3))
+    ];
+
     geometry.anchorX = geometry.masses[0];
     geometry.anchorY = geometry.masses[1];
     geometry.presenceVersion = PRESENCE_VERSION;
