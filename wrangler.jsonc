@@ -1,31 +1,8 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "miguelpita-com-br",
-  "main": "worker.js",
   "compatibility_date": "2026-08-21",
   "assets": {
-    "directory": ".",
-    "binding": "ASSETS",
-    "run_worker_first": [
-      "/api/notes/*",
-      "/notes",
-      "/notes/*"
-    ]
-  },
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "NOTES",
-        "class_name": "NotesStore"
-      }
-    ]
-  },
-  "migrations": [
-    {
-      "tag": "v1",
-      "new_sqlite_classes": [
-        "NotesStore"
-      ]
-    }
-  ]
+    "directory": "."
+  }
 }
