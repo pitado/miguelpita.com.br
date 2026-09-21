@@ -71,7 +71,7 @@ test("notes persistence is configured as a Cloudflare Durable Object", () => {
   assert.match(worker, /env\.ASSETS\.fetch/);
 
   assert.match(wrangler, /"main": "worker\.js"/);
-  assert.match(wrangler, /"binding": "ASSETS"/);
+  assert.match(wrangler, /"binding": "ASSETS"/);\n  assert.match(wrangler, /"run_worker_first"/);
   assert.match(wrangler, /"name": "NOTES"/);
   assert.match(wrangler, /"class_name": "NotesStore"/);
   assert.match(wrangler, /"new_sqlite_classes"/);
