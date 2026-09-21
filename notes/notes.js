@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const LOCAL_PREFIX = "mp-note-fallback-v1:";
+  const LOCAL_PREFIX = "mp-note-fallback-v2:";
   const INDEX_KEY = "mp-notes-index-v1";
   const DEFAULT_NOTE = "rascunho";
   const MAX_LENGTH = 100000;
@@ -21,7 +21,6 @@
   if (!routeForm || !noteName || !noteBody) return;
 
   let saveTimer = 0;
-  let mode = "cloud";
 
   function slugify(value) {
     return String(value || "")
@@ -56,11 +55,12 @@
     if (saveState) saveState.dataset.state = state;
   }
 
-  function setMode(nextMode) {
-    mode = nextMode;
+  function setMode(mode) {
     if (storageMode) {
       storageMode.textContent =
-        nextMode === "cloud" ? "Cloudflare KV" : "fallback local";
+        mode === "cloud"
+          ? "Cloudflare Durable Object"
+          : "fallback local · sincroniza depois";
     }
   }
 
@@ -84,9 +84,8 @@
 
   function remember(slug) {
     try {
-      const now = Date.now();
       const next = [
-        { slug, updatedAt: now },
+        { slug, updatedAt: Date.now() },
         ...readIndex().filter(item => item?.slug !== slug)
       ].slice(0, 18);
 
@@ -110,6 +109,49 @@
     });
   }
 
+  function readFallback(slug) {
+    try {
+      const raw = localStorage.getItem(localKey(slug));
+      if (!raw) return null;
+
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed.content !== "string") return null;
+
+      return {
+        content: parsed.content,
+        updatedAt: Number(parsed.updatedAt) || 0
+      };
+    }
+    catch {
+      return null;
+    }
+  }
+
+  function writeFallback(slug, content) {
+    try {
+      localStorage.setItem(
+        localKey(slug),
+        JSON.stringify({
+          content,
+          updatedAt: Date.now()
+        })
+      );
+      return true;
+    }
+    catch {
+      return false;
+    }
+  }
+
+  function clearFallback(slug) {
+    try {
+      localStorage.removeItem(localKey(slug));
+    }
+    catch {
+      // sem ação
+    }
+  }
+
   async function loadCloud(slug) {
     const response = await fetch(apiPath(slug), {
       method: "GET",
@@ -118,7 +160,7 @@
     });
 
     if (response.status === 404) {
-      return { content: "", isNew: true };
+      return { content: "", updatedAt: 0, isNew: true };
     }
 
     if (!response.ok) {
@@ -130,51 +172,9 @@
     const payload = await response.json();
     return {
       content: typeof payload.content === "string" ? payload.content : "",
+      updatedAt: Date.parse(payload.updatedAt || "") || 0,
       isNew: false
     };
-  }
-
-  function loadLocal(slug) {
-    try {
-      return localStorage.getItem(localKey(slug)) || "";
-    }
-    catch {
-      return "";
-    }
-  }
-
-  async function loadNote() {
-    const slug = activeSlug();
-
-    if (window.location.pathname !== canonicalPath(slug)) {
-      window.history.replaceState(null, "", canonicalPath(slug));
-    }
-
-    noteName.value = slug;
-    renderHistory();
-    setStatus("carregando", "loading");
-    noteBody.disabled = true;
-
-    try {
-      const note = await loadCloud(slug);
-      noteBody.value = note.content;
-      setMode("cloud");
-      setStatus(note.isNew ? "nova nota" : "salvo");
-    }
-    catch {
-      noteBody.value = loadLocal(slug);
-      setMode("local");
-      setStatus("modo local", "local");
-    }
-
-    noteBody.disabled = false;
-    remember(slug);
-    updateCount();
-    document.title = `${slug} · Notes · Miguel Pita`;
-
-    window.requestAnimationFrame(() => {
-      if (!noteBody.value) noteBody.focus();
-    });
   }
 
   async function saveCloud(slug, content) {
@@ -189,19 +189,11 @@
       error.status = response.status;
       throw error;
     }
+
+    return response.json();
   }
 
-  function saveLocal(slug, content) {
-    try {
-      localStorage.setItem(localKey(slug), content);
-      return true;
-    }
-    catch {
-      return false;
-    }
-  }
-
-  async function saveNow() {
+  async function syncCurrentNote() {
     const slug = activeSlug();
     const content = noteBody.value.slice(0, MAX_LENGTH);
 
@@ -212,32 +204,88 @@
 
     try {
       await saveCloud(slug, content);
+      clearFallback(slug);
       setMode("cloud");
       setStatus("salvo");
       remember(slug);
-      return;
+      return true;
     }
     catch {
-      if (saveLocal(slug, content)) {
-        setMode("local");
-        setStatus("salvo local", "local");
-        remember(slug);
-        return;
-      }
+      writeFallback(slug, content);
+      setMode("local");
+      setStatus("salvo local", "local");
+      remember(slug);
+      return false;
+    }
+  }
+
+  async function loadNote() {
+    const slug = activeSlug();
+    const pending = readFallback(slug);
+
+    if (window.location.pathname !== canonicalPath(slug)) {
+      window.history.replaceState(null, "", canonicalPath(slug));
     }
 
-    setStatus("erro ao salvar", "error");
+    noteName.value = slug;
+    renderHistory();
+    setStatus("carregando", "loading");
+    noteBody.disabled = true;
+
+    try {
+      const cloud = await loadCloud(slug);
+      const localIsNewer = pending && pending.updatedAt > cloud.updatedAt;
+
+      if (localIsNewer) {
+        noteBody.value = pending.content;
+        setMode("cloud");
+        setStatus("sincronizando", "saving");
+      }
+      else {
+        noteBody.value = cloud.content;
+        clearFallback(slug);
+        setMode("cloud");
+        setStatus(cloud.isNew ? "nova nota" : "salvo");
+      }
+
+      noteBody.disabled = false;
+      updateCount();
+      remember(slug);
+
+      if (localIsNewer) {
+        await syncCurrentNote();
+      }
+    }
+    catch {
+      noteBody.value = pending?.content || "";
+      noteBody.disabled = false;
+      setMode("local");
+      setStatus("modo local", "local");
+      updateCount();
+      remember(slug);
+    }
+
+    document.title = `${slug} · Notes · Miguel Pita`;
+
+    window.requestAnimationFrame(() => {
+      if (!noteBody.value) noteBody.focus();
+    });
   }
 
   function scheduleSave() {
+    const slug = activeSlug();
+    const content = noteBody.value.slice(0, MAX_LENGTH);
+
+    writeFallback(slug, content);
     window.clearTimeout(saveTimer);
     setStatus("salvando", "saving");
-    saveTimer = window.setTimeout(saveNow, 380);
+    saveTimer = window.setTimeout(syncCurrentNote, 420);
   }
 
   async function openNamedNote(rawName) {
     window.clearTimeout(saveTimer);
-    await saveNow();
+    await syncCurrentNote();
+
     const slug = slugify(rawName);
     window.location.assign(canonicalPath(slug));
   }
@@ -273,7 +321,7 @@
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
       window.clearTimeout(saveTimer);
-      saveNow();
+      syncCurrentNote();
     }
   });
 
@@ -311,7 +359,7 @@
 
     noteBody.value = "";
     updateCount();
-    saveNow();
+    scheduleSave();
     noteBody.focus();
   });
 
