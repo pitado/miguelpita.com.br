@@ -43,8 +43,68 @@ function isSameOriginWrite(request) {
   }
 }
 
+export class NotesStore {
+  constructor(state) {
+    this.state = state;
+  }
+
+  async fetch(request) {
+    if (request.method === "GET") {
+      const stored = await this.state.storage.get("note");
+
+      if (!stored) {
+        return json({ error: "Note not found.", code: "NOTE_NOT_FOUND" }, 404);
+      }
+
+      return json({
+        content: typeof stored.content === "string" ? stored.content : "",
+        updatedAt: stored.updatedAt || null
+      });
+    }
+
+    if (request.method === "PUT") {
+      let body;
+      try {
+        body = await request.json();
+      }
+      catch {
+        return json({ error: "Invalid JSON." }, 400);
+      }
+
+      if (!body || typeof body.content !== "string") {
+        return json({ error: "content must be a string." }, 400);
+      }
+
+      const byteLength = new TextEncoder().encode(body.content).byteLength;
+      if (byteLength > MAX_NOTE_BYTES) {
+        return json({ error: "Note is too large.", maxBytes: MAX_NOTE_BYTES }, 413);
+      }
+
+      const updatedAt = new Date().toISOString();
+
+      await this.state.storage.put("note", {
+        content: body.content,
+        updatedAt
+      });
+
+      return json({ ok: true, updatedAt });
+    }
+
+    if (request.method === "DELETE") {
+      await this.state.storage.delete("note");
+      return json({ ok: true });
+    }
+
+    return json(
+      { error: "Method not allowed." },
+      405,
+      { "Allow": "GET, PUT, DELETE" }
+    );
+  }
+}
+
 async function handleNotesApi(request, env, slug) {
-  if (!env.NOTES || typeof env.NOTES.get !== "function") {
+  if (!env.NOTES || typeof env.NOTES.idFromName !== "function") {
     return json(
       {
         error: "Notes storage is not configured.",
@@ -54,71 +114,16 @@ async function handleNotesApi(request, env, slug) {
     );
   }
 
-  const key = "note:" + slug;
-
-  if (request.method === "GET") {
-    const stored = await env.NOTES.get(key, "json");
-
-    if (!stored) {
-      return json({ error: "Note not found.", code: "NOTE_NOT_FOUND" }, 404);
-    }
-
-    return json({
-      slug,
-      content: typeof stored.content === "string" ? stored.content : "",
-      updatedAt: stored.updatedAt || null
-    });
+  if (
+    (request.method === "PUT" || request.method === "DELETE") &&
+    !isSameOriginWrite(request)
+  ) {
+    return json({ error: "Cross-origin write blocked." }, 403);
   }
 
-  if (request.method === "PUT") {
-    if (!isSameOriginWrite(request)) {
-      return json({ error: "Cross-origin write blocked." }, 403);
-    }
-
-    let body;
-    try {
-      body = await request.json();
-    }
-    catch {
-      return json({ error: "Invalid JSON." }, 400);
-    }
-
-    if (!body || typeof body.content !== "string") {
-      return json({ error: "content must be a string." }, 400);
-    }
-
-    const byteLength = new TextEncoder().encode(body.content).byteLength;
-    if (byteLength > MAX_NOTE_BYTES) {
-      return json({ error: "Note is too large.", maxBytes: MAX_NOTE_BYTES }, 413);
-    }
-
-    const updatedAt = new Date().toISOString();
-
-    await env.NOTES.put(
-      key,
-      JSON.stringify({
-        content: body.content,
-        updatedAt
-      })
-    );
-
-    return json({ ok: true, slug, updatedAt });
-  }
-
-  if (request.method === "DELETE") {
-    if (!isSameOriginWrite(request)) {
-      return json({ error: "Cross-origin write blocked." }, 403);
-    }
-
-    await env.NOTES.delete(key);
-    return json({ ok: true, slug });
-  }
-
-  return json(
-    { error: "Method not allowed." },
-    405,
-    { "Allow": "GET, PUT, DELETE" }
-  );
+  const id = env.NOTES.idFromName(slug);
+  const stub = env.NOTES.get(id);
+  return stub.fetch(request);
 }
 
 function notesPageRequest(request) {
