@@ -5,7 +5,12 @@
   "compatibility_date": "2026-08-21",
   "assets": {
     "directory": ".",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/notes/*",
+      "/notes",
+      "/notes/*"
+    ]
   },
   "durable_objects": {
     "bindings": [
