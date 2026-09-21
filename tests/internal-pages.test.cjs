@@ -46,6 +46,7 @@ test("notes page exposes a DontPad-style editor", () => {
   assert.match(js, /\/api\/notes\//);
   assert.match(js, /\/notes\//);
   assert.match(js, /syncCurrentNote/);
+  assert.match(js, /fallback local/);
 });
 
 test("internal pages reuse the procedural DNA theme", () => {
@@ -65,13 +66,15 @@ test("notes persistence is configured as a Cloudflare Durable Object", () => {
   const wrangler = read("wrangler.jsonc");
   const ignoredAssets = read(".assetsignore");
 
-  assert.match(worker, /export class NotesStore/);
-  assert.match(worker, /state\.storage\.put/);
-  assert.match(worker, /idFromName\(slug\)/);
+  assert.match(worker, /from "cloudflare:workers"/);
+  assert.match(worker, /export class NotesStore extends DurableObject/);
+  assert.match(worker, /this\.ctx\.storage\.put/);
+  assert.match(worker, /getByName\(slug\)/);
   assert.match(worker, /env\.ASSETS\.fetch/);
 
   assert.match(wrangler, /"main": "worker\.js"/);
-  assert.match(wrangler, /"binding": "ASSETS"/);\n  assert.match(wrangler, /"run_worker_first"/);
+  assert.match(wrangler, /"binding": "ASSETS"/);
+  assert.match(wrangler, /"run_worker_first"/);
   assert.match(wrangler, /"name": "NOTES"/);
   assert.match(wrangler, /"class_name": "NotesStore"/);
   assert.match(wrangler, /"new_sqlite_classes"/);
