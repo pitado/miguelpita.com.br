@@ -35,8 +35,22 @@ test("contact page exposes the canonical contact channels", () => {
   assert.match(html, /https:\/\/github\.com\/pitado/);
 });
 
+test("notes page exposes a DontPad-style editor", () => {
+  const html = read("notes/index.html");
+  const js = read("notes/notes.js");
+
+  assert.match(html, /id="noteName"/);
+  assert.match(html, /id="noteBody"/);
+  assert.match(html, /copiar endereço/);
+  assert.match(html, /quem tiver o endereço da nota poderá ler e editar/i);
+  assert.match(js, /\/api\/notes\//);
+  assert.match(js, /\/notes\//);
+  assert.match(js, /syncCurrentNote/);
+  assert.match(js, /fallback local/);
+});
+
 test("internal pages reuse the procedural DNA theme", () => {
-  for (const file of ["api/index.html", "contact/index.html"]) {
+  for (const file of ["api/index.html", "contact/index.html", "notes/index.html"]) {
     const html = read(file);
 
     assert.match(html, /adaptive-profile\.js/);
@@ -45,4 +59,25 @@ test("internal pages reuse the procedural DNA theme", () => {
     assert.match(html, /grammar-v12\.js/);
     assert.match(html, /internal-theme\.js/);
   }
+});
+
+test("notes persistence is configured as a Cloudflare Durable Object", () => {
+  const worker = read("worker.js");
+  const wrangler = read("wrangler.jsonc");
+  const ignoredAssets = read(".assetsignore");
+
+  assert.match(worker, /from "cloudflare:workers"/);
+  assert.match(worker, /export class NotesStore extends DurableObject/);
+  assert.match(worker, /this\.ctx\.storage\.put/);
+  assert.match(worker, /getByName\(slug\)/);
+  assert.match(worker, /env\.ASSETS\.fetch/);
+
+  assert.match(wrangler, /"main": "worker\.js"/);
+  assert.match(wrangler, /"binding": "ASSETS"/);
+  assert.match(wrangler, /"run_worker_first"/);
+  assert.match(wrangler, /"name": "NOTES"/);
+  assert.match(wrangler, /"class_name": "NotesStore"/);
+  assert.match(wrangler, /"new_sqlite_classes"/);
+
+  assert.match(ignoredAssets, /^worker\.js$/m);
 });
