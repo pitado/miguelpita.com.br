@@ -1,3 +1,5 @@
+import { DurableObject } from "cloudflare:workers";
+
 const NOTE_SLUG = /^[a-z0-9_-]{1,48}$/;
 const MAX_NOTE_BYTES = 100000;
 
@@ -43,14 +45,14 @@ function isSameOriginWrite(request) {
   }
 }
 
-export class NotesStore {
-  constructor(state) {
-    this.state = state;
+export class NotesStore extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
   }
 
   async fetch(request) {
     if (request.method === "GET") {
-      const stored = await this.state.storage.get("note");
+      const stored = await this.ctx.storage.get("note");
 
       if (!stored) {
         return json({ error: "Note not found.", code: "NOTE_NOT_FOUND" }, 404);
@@ -82,7 +84,7 @@ export class NotesStore {
 
       const updatedAt = new Date().toISOString();
 
-      await this.state.storage.put("note", {
+      await this.ctx.storage.put("note", {
         content: body.content,
         updatedAt
       });
@@ -91,7 +93,7 @@ export class NotesStore {
     }
 
     if (request.method === "DELETE") {
-      await this.state.storage.delete("note");
+      await this.ctx.storage.delete("note");
       return json({ ok: true });
     }
 
@@ -104,7 +106,7 @@ export class NotesStore {
 }
 
 async function handleNotesApi(request, env, slug) {
-  if (!env.NOTES || typeof env.NOTES.idFromName !== "function") {
+  if (!env.NOTES || typeof env.NOTES.getByName !== "function") {
     return json(
       {
         error: "Notes storage is not configured.",
@@ -121,8 +123,7 @@ async function handleNotesApi(request, env, slug) {
     return json({ error: "Cross-origin write blocked." }, 403);
   }
 
-  const id = env.NOTES.idFromName(slug);
-  const stub = env.NOTES.get(id);
+  const stub = env.NOTES.getByName(slug);
   return stub.fetch(request);
 }
 
