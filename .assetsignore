@@ -4,5 +4,4 @@
 /tests
 package.json
 wrangler.jsonc
-worker.js
 .assetsignore
